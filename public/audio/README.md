@@ -6,10 +6,13 @@ provided with the build spec). Drop the audio files here with these **exact** fi
 | Filename | Track |
 |---|---|
 | `i_dont_care_tonight.mp3` | I Don't Care Tonight |
-| `where_the_inside_opens_wide.mp3` | Where the Inside Opens Wide |
-| `who_moved_the_moon.mp3` | Who Moved the Moon |
-| `dub_steps_trip.mp3` | Dub Steps Trip |
-| `everyday_g.mp3` | Everyday G |
+| `where_the_inside_opens_wide.m4a` | Where the Inside Opens Wide |
+| `who_moved_the_moon.m4a` | Who Moved the Moon |
+| `dub_steps_trip.m4a` | Dub Steps Trip |
+| `everyday_g.m4a` | Everyday G |
+
+> Both `.mp3` and `.m4a` (AAC) play natively in Chrome and Android WebView. The extension in
+> each row must match the `audioFile` field in `src/data/tracks.ts` — that's what the loader uses.
 
 The filenames must match the `audioFile` field in each `src/charts/<trackId>.json`
 (and `src/data/tracks.ts`). To add a **new** song, follow the same convention — see

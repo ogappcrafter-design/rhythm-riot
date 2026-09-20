@@ -32,7 +32,7 @@ export const TRACKS: TrackMeta[] = [
   {
     id: 'where_the_inside_opens_wide',
     title: 'Where the Inside Opens Wide',
-    audioFile: 'where_the_inside_opens_wide.mp3',
+    audioFile: 'where_the_inside_opens_wide.m4a',
     paletteKey: 'where_the_inside_opens_wide',
     tagline: 'Wide dynamic swings',
     bpm: 129.2,
@@ -41,7 +41,7 @@ export const TRACKS: TrackMeta[] = [
   {
     id: 'who_moved_the_moon',
     title: 'Who Moved the Moon',
-    audioFile: 'who_moved_the_moon.mp3',
+    audioFile: 'who_moved_the_moon.m4a',
     paletteKey: 'who_moved_the_moon',
     tagline: 'Slow burn · epic build',
     bpm: 95.7,
@@ -50,7 +50,7 @@ export const TRACKS: TrackMeta[] = [
   {
     id: 'dub_steps_trip',
     title: 'Dub Steps Trip',
-    audioFile: 'dub_steps_trip.mp3',
+    audioFile: 'dub_steps_trip.m4a',
     paletteKey: 'dub_steps_trip',
     tagline: 'Electronic · hard drops',
     bpm: 136.0,
@@ -59,7 +59,7 @@ export const TRACKS: TrackMeta[] = [
   {
     id: 'everyday_g',
     title: 'Everyday G',
-    audioFile: 'everyday_g.mp3',
+    audioFile: 'everyday_g.m4a',
     paletteKey: 'everyday_g',
     tagline: 'Fastest · densest · prove yourself',
     bpm: 152.0,

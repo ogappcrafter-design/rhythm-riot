@@ -28,7 +28,7 @@ for (const id of manifest) {
   test(`${id}: has required top-level fields`, () => {
     assert.equal(chart.trackId, id);
     assert.ok(chart.title && typeof chart.title === 'string');
-    assert.ok(chart.audioFile.endsWith('.mp3'));
+    assert.ok(/\.(mp3|m4a|ogg|wav)$/.test(chart.audioFile), `unexpected audio ext: ${chart.audioFile}`);
     assert.ok(chart.durationMs > 0);
     assert.ok(chart.bpm > 0);
   });
