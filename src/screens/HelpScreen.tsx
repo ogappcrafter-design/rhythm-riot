@@ -33,11 +33,12 @@ export function HelpScreen() {
           </div>
         </div>
 
-        <HowStep n={1} title="Tap in time" body="Gems fall down the lanes. Tap the matching lane pad the moment a gem reaches the glowing hit ring." />
+        <HowStep n={1} title="Tap in time" body="Glowing stars fall down the lanes. Tap the matching lane pad the moment a star reaches the bright hit ring." />
         <HowStep n={2} title="Chase Perfects" body="The tighter your timing, the better the grade — Perfect, Great, Good. Missing never ends the run; every song plays to the finish." />
-        <HowStep n={3} title="Build the Mood" body="Streaks push a hidden Mood Meter up — the whole screen gets warmer, brighter and wilder. Break your combo and it cools back down." />
-        <HowStep n={4} title="Earn the Vibe Score" body="Riding the song's natural build-ups cleanly earns a secret Vibe Score on top of your accuracy score." />
-        <HowStep n={5} title="Unlock Expert" body="Hit 90% Perfect on Hard for any track to permanently unlock its hand-charted 5-lane Expert." />
+        <HowStep n={3} title="Hold the long ones" body="Some stars trail a glowing tail — press when the star lands and keep holding until the tail runs out for bonus points. Let go early and your combo breaks." />
+        <HowStep n={4} title="Build the Mood" body="Streaks push a hidden Mood Meter up — the whole screen gets warmer, brighter and wilder. Break your combo and it cools back down." />
+        <HowStep n={5} title="Earn the Vibe Score" body="Riding the song's natural build-ups cleanly earns a secret Vibe Score on top of your accuracy score." />
+        <HowStep n={6} title="Unlock Expert" body="Hit 90% Perfect on Hard for any track to permanently unlock its hand-charted 5-lane Expert." />
 
         <a
           className="btn btn-primary btn-block"

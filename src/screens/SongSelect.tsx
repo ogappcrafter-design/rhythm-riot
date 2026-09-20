@@ -61,7 +61,11 @@ export function SongSelect() {
             getBest(track.id, 'expert');
 
           return (
-            <div className="card track-card" key={track.id} style={{ padding: 14 }}>
+            <div
+              className="card track-card"
+              key={track.id}
+              style={{ padding: 14, ['--card-accent' as string]: rgbCss(pal.high.glow) }}
+            >
               <div className="row" style={{ alignItems: 'stretch', gap: 14 }}>
                 <TrackArt low={pal.low.bgGlow} high={pal.high.bgGlow} index={i} />
                 <div style={{ flex: 1, minWidth: 0 }}>

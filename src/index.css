@@ -253,3 +253,112 @@ input[type='range']::-webkit-slider-thumb {
   -webkit-mask-image: linear-gradient(180deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
   mask-image: linear-gradient(180deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
 }
+
+/* ===================== AURORA BACKGROUND ===================== */
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0a0c1e, #05060f 70%);
+}
+.aurora-grid {
+  position: absolute;
+  inset: -12%;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+  animation: drift 44s linear infinite;
+  opacity: 0.4;
+}
+.aurora-blob {
+  position: absolute;
+  width: 65vw;
+  height: 65vw;
+  max-width: 620px;
+  max-height: 620px;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.aurora-blob.b1 {
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.75), transparent 60%);
+  top: -16%;
+  left: -12%;
+  animation: blob1 19s ease-in-out infinite;
+}
+.aurora-blob.b2 {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.6), transparent 60%);
+  bottom: -22%;
+  right: -16%;
+  animation: blob2 23s ease-in-out infinite;
+}
+.aurora-blob.b3 {
+  background: radial-gradient(circle, rgba(176, 107, 255, 0.5), transparent 60%);
+  top: 28%;
+  left: 38%;
+  animation: blob3 27s ease-in-out infinite;
+}
+@keyframes blob1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(9vw, 7vh) scale(1.2); }
+}
+@keyframes blob2 {
+  0%, 100% { transform: translate(0, 0) scale(1.1); }
+  50% { transform: translate(-8vw, -6vh) scale(0.9); }
+}
+@keyframes blob3 {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  50% { transform: translate(-6vw, 8vh) scale(1.15); }
+}
+.aurora-shards {
+  position: absolute;
+  inset: 0;
+}
+.aurora-shard {
+  position: absolute;
+  opacity: 0.32;
+  animation-name: shardfloat;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes shardfloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-26px) rotate(180deg); }
+}
+.aurora-scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(124, 92, 255, 0.05) 50%, transparent);
+  background-size: 100% 45%;
+  animation: scan 9s linear infinite;
+  opacity: 0.7;
+  pointer-events: none;
+}
+@keyframes scan {
+  0% { background-position: 0 -45%; }
+  100% { background-position: 0 145%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob, .aurora-shard, .aurora-scan, .aurora-grid { animation: none; }
+}
+
+/* Primary button shimmer */
+.btn-primary {
+  overflow: hidden;
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 32%, rgba(255, 255, 255, 0.32) 50%, transparent 68%);
+  background-size: 220% 100%;
+  animation: shimmer 3.6s linear infinite;
+  pointer-events: none;
+}
+@keyframes shimmer {
+  0% { background-position: 220% 0; }
+  100% { background-position: -120% 0; }
+}

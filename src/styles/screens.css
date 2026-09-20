@@ -38,6 +38,21 @@
   60% { opacity: 1; filter: blur(0); }
   100% { transform: scale(1); }
 }
+.intro-logo::before {
+  content: '';
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 92, 255, 0.35);
+  box-shadow: 0 0 60px rgba(124, 92, 255, 0.35) inset;
+  animation: bassring 2.4s ease-out infinite;
+  z-index: -1;
+}
+@keyframes bassring {
+  0% { transform: scale(0.4); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
 .intro-tag {
   position: relative;
   z-index: 2;
@@ -92,11 +107,72 @@
   width: min(480px, 90vw);
 }
 .menu-mark {
+  position: relative;
   filter: drop-shadow(0 0 22px rgba(124, 92, 255, 0.7));
   animation: float 4s ease-in-out infinite;
   margin-bottom: 4px;
 }
+.menu-mark::before {
+  content: '';
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.55), transparent 65%);
+  z-index: -1;
+  animation: pulsering 3s ease-in-out infinite;
+}
+@keyframes pulsering {
+  0%, 100% { transform: scale(0.9); opacity: 0.55; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* Equalizer motif under the logo */
+.eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 34px;
+  margin-top: 6px;
+}
+.eq span {
+  width: 5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 10px rgba(124, 92, 255, 0.6);
+  animation: eqbar 1s ease-in-out infinite;
+}
+@keyframes eqbar {
+  0%, 100% { height: 20%; opacity: 0.65; }
+  50% { height: 100%; opacity: 1; }
+}
+
+/* Song card polish */
+.track-card {
+  position: relative;
+  overflow: hidden;
+  border-left: 3px solid var(--card-accent, transparent);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--glass-border) inset,
+    0 0 22px -6px var(--card-accent, transparent);
+}
+.track-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  transform: skewX(-18deg);
+  animation: cardsheen 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes cardsheen {
+  0%, 70% { left: -60%; }
+  100% { left: 140%; }
+}
+.diff-gem { transition: transform 0.12s ease, box-shadow 0.2s ease; }
+.diff-gem:not(:disabled):hover { transform: rotate(45deg) scale(1.08); }
 
 /* ======================= DIFFICULTY GEM ======================= */
 .diff-gem {

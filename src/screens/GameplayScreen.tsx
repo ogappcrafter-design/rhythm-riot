@@ -34,7 +34,8 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     score: 0, combo: 0, accuracy: 0, progress: 0, perfect: 0, great: 0, good: 0, miss: 0,
   });
   const [laneCount, setLaneCount] = useState(4);
-  const [activeLanes, setActiveLanes] = useState<boolean[]>([]);
+  const laneElsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const keyDownRef = useRef<Set<number>>(new Set());
 
   const accent: [string, string, string] = ['#ffffff', rgbCss(pal.high.note), rgbCss(pal.high.glow)];
 
@@ -47,7 +48,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
         if (cancelled) return;
         chartRef.current = chart;
         setLaneCount(chart.difficulties[difficulty].laneCount);
-        setActiveLanes(new Array(chart.difficulties[difficulty].laneCount).fill(false));
+        laneElsRef.current = new Array(chart.difficulties[difficulty].laneCount).fill(null);
 
         const clock = new AudioClock(chart.durationMs);
         clock.setMusicVolume(settings.musicVolume);
@@ -154,18 +155,31 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     };
   }, []);
 
-  // ---- keyboard (desktop) ----
+  // ---- keyboard (desktop): keydown = press, keyup = release (for holds) ----
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onDown = (e: KeyboardEvent) => {
       if (phase !== 'playing') return;
       const idx = KEY_MAP.indexOf(e.key.toLowerCase());
       if (idx >= 0 && idx < laneCount) {
         e.preventDefault();
-        triggerLane(idx);
+        if (keyDownRef.current.has(idx)) return; // ignore auto-repeat
+        keyDownRef.current.add(idx);
+        pressLane(idx);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onUp = (e: KeyboardEvent) => {
+      const idx = KEY_MAP.indexOf(e.key.toLowerCase());
+      if (idx >= 0 && idx < laneCount) {
+        keyDownRef.current.delete(idx);
+        releaseLane(idx);
+      }
+    };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, laneCount]);
 
@@ -177,20 +191,18 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     };
   }, []);
 
-  const triggerLane = (lane: number) => {
-    engineRef.current?.hitLane(lane);
-    setActiveLanes((prev) => {
-      const next = [...prev];
-      next[lane] = true;
-      return next;
-    });
-    window.setTimeout(() => {
-      setActiveLanes((prev) => {
-        const next = [...prev];
-        next[lane] = false;
-        return next;
-      });
-    }, 90);
+  // Imperative pad visuals (no React re-render per tap → lower input latency).
+  const setPadActive = (lane: number, on: boolean) => {
+    const el = laneElsRef.current[lane];
+    if (el) el.classList.toggle('active', on);
+  };
+  const pressLane = (lane: number) => {
+    engineRef.current?.pressLane(lane);
+    setPadActive(lane, true);
+  };
+  const releaseLane = (lane: number) => {
+    engineRef.current?.releaseLane(lane);
+    setPadActive(lane, false);
   };
 
   const doPause = () => {
@@ -240,12 +252,13 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
           {Array.from({ length: laneCount }).map((_, i) => (
             <button
               key={i}
-              className={`lane-btn ${activeLanes[i] ? 'active' : ''}`}
+              ref={(el) => { laneElsRef.current[i] = el; }}
+              className="lane-btn"
               style={{ ['--pad' as string]: rgbCss(pal.high.glow) }}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                triggerLane(i);
-              }}
+              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); pressLane(i); }}
+              onPointerUp={(e) => { e.preventDefault(); releaseLane(i); }}
+              onPointerCancel={() => releaseLane(i)}
+              onLostPointerCapture={() => releaseLane(i)}
               aria-label={`Lane ${i + 1}`}
             />
           ))}

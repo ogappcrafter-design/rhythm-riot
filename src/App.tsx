@@ -9,6 +9,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { HelpScreen } from './screens/HelpScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { AuroraBackground } from './components/AuroraBackground';
 
 /** Screens that use the shared animated menu background (gameplay & intro paint their own). */
 const MENU_BG = new Set(['menu', 'songselect', 'ready', 'results', 'settings', 'help', 'profile', 'calibration']);
@@ -56,7 +57,7 @@ export function App() {
 
   return (
     <div className="app-frame">
-      {MENU_BG.has(route.name) && <div className="bg-scene" />}
+      {MENU_BG.has(route.name) && <AuroraBackground />}
       {body}
     </div>
   );

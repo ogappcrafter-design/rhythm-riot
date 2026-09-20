@@ -51,7 +51,11 @@ for (const id of manifest) {
       for (const n of dc.notes) {
         assert.ok(n.timeMs >= 0 && n.timeMs <= chart.durationMs + 1000, `${d} time OOB @${n.timeMs}`);
         assert.ok(n.lane >= 0 && n.lane < dc.laneCount, `${d} lane OOB ${n.lane}`);
-        assert.equal(n.type, 'tap');
+        assert.ok(n.type === 'tap' || n.type === 'hold', `${d} bad type ${n.type}`);
+        if (n.type === 'hold') {
+          assert.ok(n.holdMs > 0, `${d} hold missing holdMs @${n.timeMs}`);
+          assert.ok(n.timeMs + n.holdMs <= chart.durationMs + 1000, `${d} hold tail OOB @${n.timeMs}`);
+        }
         assert.ok(n.timeMs >= last, `${d} not sorted @${n.timeMs}`);
         last = n.timeMs;
       }

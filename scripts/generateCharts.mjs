@@ -44,11 +44,18 @@ const HIT_WINDOWS = {
 };
 
 const DIFF_CONFIG = {
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false },
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.07 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.08 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.08 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.1 },
 };
+
+// Hold-note tuning (spec 5.4 "hold" type). A note becomes a sustained hold when the gap to
+// the next note is long enough to feel deliberate; the tail ends before the next note.
+const HOLD_MIN_GAP_MS = 620; // minimum gap to consider a hold
+const HOLD_RELEASE_BUFFER_MS = 190; // tail ends this far before the next note
+const HOLD_MIN_MS = 420; // shorter than this isn't worth being a hold
+const HOLD_CAP_MS = 2400; // never longer than this
 
 /* ------------------------------ RNG ------------------------------ */
 
@@ -133,7 +140,36 @@ function selectNotes(candidates, targetCount, minSpacingMs) {
   return accepted;
 }
 
-// Energy-clustered lane wander that stays playable.
+// Mark the longest-gap notes as sustained holds (spec 5.4 "hold" type). Mutates in place,
+// adding { holdMs } to the chosen notes. `picked` must be time-sorted.
+function markHolds(trackId, diff, picked) {
+  const cfg = DIFF_CONFIG[diff];
+  const rng = mulberry32(hashSeed(`${trackId}::${diff}::holds`));
+  const candidates = [];
+  for (let i = 0; i < picked.length - 1; i++) {
+    const gap = picked[i + 1].tMs - picked[i].tMs;
+    if (gap >= HOLD_MIN_GAP_MS && (picked[i].energy ?? 0.4) >= 0.32) {
+      candidates.push({ i, gap });
+    }
+  }
+  // Prefer the longest, deliberate gaps; add slight seeded jitter so it isn't purely by length.
+  candidates.sort((a, b) => b.gap - a.gap + (rng() - 0.5) * 40);
+  const targetHolds = Math.round(picked.length * cfg.holdFraction);
+  let placed = 0;
+  let lastHoldIdx = -10;
+  for (const c of candidates) {
+    if (placed >= targetHolds) break;
+    if (c.i - lastHoldIdx < 3) continue; // don't cluster holds back-to-back
+    const holdMs = Math.min(c.gap - HOLD_RELEASE_BUFFER_MS, HOLD_CAP_MS);
+    if (holdMs < HOLD_MIN_MS) continue;
+    picked[c.i].holdMs = holdMs;
+    lastHoldIdx = c.i;
+    placed++;
+  }
+  return picked;
+}
+
+// Energy-clustered lane wander that stays playable. Preserves hold duration onto the note.
 function assignLanes(trackId, diff, notes, laneCount) {
   const rng = mulberry32(hashSeed(`${trackId}::${diff}::lanes`));
   let lane = Math.floor(rng() * laneCount);
@@ -151,7 +187,9 @@ function assignLanes(trackId, diff, notes, laneCount) {
     if (next === lane) repeat++;
     else repeat = 0;
     lane = next;
-    return { timeMs: n.tMs, lane, type: 'tap' };
+    const note = { timeMs: n.tMs, lane, type: n.holdMs ? 'hold' : 'tap' };
+    if (n.holdMs) note.holdMs = n.holdMs;
+    return note;
   });
 }
 
@@ -161,6 +199,7 @@ function buildDifficulty(trackId, diff, analysis) {
   if (cfg.snapToBeat) candidates = snapToBeats(analysis.onsets, analysis.beatsMs);
   const target = Math.round(analysis.numOnsets * cfg.onsetFraction);
   const picked = selectNotes(candidates, target, cfg.minSpacingMs);
+  markHolds(trackId, diff, picked);
   return assignLanes(trackId, diff, picked, cfg.laneCount);
 }
 
@@ -190,6 +229,7 @@ function buildExpert(trackId, analysis) {
   }
 
   const all = [...base, ...extras].sort((a, b) => a.tMs - b.tMs);
+  markHolds(trackId, 'expert', all);
   return assignLanes(trackId, 'expert', all, cfg.laneCount);
 }
 
