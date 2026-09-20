@@ -45,7 +45,7 @@ src/
   audio/sfx        synthesized Web Audio SFX (zero audio assets needed)
   state/           localStorage persistence + React app context (nav + live settings)
   components/       WordArt (SVG), icons (SVG), shared UI, ErrorBoundary
-  screens/         intro · menu · song select · ready · gameplay · results · settings · help · calibration
+  screens/         intro · menu · song select · ready · gameplay · results · profile/stats · settings · help · calibration
 scripts/
   generateCharts.mjs   build-time chart generator (runs automatically on `npm run build`)
 test/

@@ -8,9 +8,10 @@ import { ResultsScreen } from './screens/ResultsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { HelpScreen } from './screens/HelpScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
+import { ProfileScreen } from './screens/ProfileScreen';
 
 /** Screens that use the shared animated menu background (gameplay & intro paint their own). */
-const MENU_BG = new Set(['menu', 'songselect', 'ready', 'results', 'settings', 'help', 'calibration']);
+const MENU_BG = new Set(['menu', 'songselect', 'ready', 'results', 'settings', 'help', 'profile', 'calibration']);
 
 export function App() {
   const { route } = useApp();
@@ -46,6 +47,8 @@ export function App() {
         return <SettingsScreen />;
       case 'help':
         return <HelpScreen />;
+      case 'profile':
+        return <ProfileScreen />;
       case 'calibration':
         return <CalibrationScreen />;
     }

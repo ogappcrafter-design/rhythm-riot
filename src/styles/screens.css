@@ -394,3 +394,86 @@
   transform: scale(1.02);
 }
 .calib-pad:active { transform: scale(0.98); }
+
+/* ========================= PROFILE =========================== */
+.rank-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+.rank-mark {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 215, 106, 0.35), rgba(255, 138, 60, 0.12));
+  box-shadow: 0 0 24px rgba(255, 215, 106, 0.4);
+}
+.rank-bar {
+  height: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.rank-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rank-bar-fill.gold {
+  background: linear-gradient(90deg, #ffd76a, #ff8a3c);
+}
+.completion { padding: 14px 16px; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+@media (max-width: 420px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.stat-tile {
+  padding: 12px 8px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+.mini-stat {
+  flex: 1;
+  padding: 12px 14px;
+}
+
+.profile-track { padding: 12px 14px; }
+.profile-diffs { flex-wrap: wrap; }
+.diff-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  border: 1px solid;
+  background: rgba(255, 255, 255, 0.03);
+  min-height: 30px;
+}
+.diff-chip.played { background: rgba(255, 255, 255, 0.06); }
+.diff-chip-tag { font-weight: 900; font-style: italic; font-size: 13px; }
+.diff-chip-grade { font-weight: 900; font-size: 14px; }
+.diff-chip-stars { color: #ffd76a; font-size: 10px; letter-spacing: -1px; }

@@ -94,6 +94,27 @@ export function IconRiotShard({ size = 24, color, style }: IconProps) {
   );
 }
 
+export function IconTrophy({ size = 24, color, style }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" style={base(size, color, style)} fill="none" stroke="currentColor" strokeWidth={1.7}>
+      <path d="M7 4h10v4a5 5 0 0 1-10 0V4Z" fill="rgba(255,215,106,0.18)" />
+      <path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3" strokeLinecap="round" />
+      <path d="M9.5 13.5 9 17h6l-.5-3.5M8 20h8M10 17v3M14 17v3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconChart({ size = 24, color, style }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" style={base(size, color, style)} fill="none" stroke="currentColor" strokeWidth={1.9}>
+      <path d="M4 20V4M4 20h16" strokeLinecap="round" />
+      <rect x="7" y="12" width="3" height="5" rx="1" fill="currentColor" stroke="none" />
+      <rect x="12" y="8" width="3" height="9" rx="1" fill="currentColor" stroke="none" opacity="0.75" />
+      <rect x="17" y="5" width="3" height="12" rx="1" fill="currentColor" stroke="none" opacity="0.5" />
+    </svg>
+  );
+}
+
 export function IconReplay({ size = 24, color, style }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" style={base(size, color, style)} fill="none" stroke="currentColor" strokeWidth={2}>

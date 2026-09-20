@@ -6,7 +6,7 @@ import type { Difficulty, TrackChart } from '../engine/chartTypes';
 import { loadChart } from '../engine/chartLoader';
 import { AudioClock } from '../engine/audioClock';
 import { GameEngine, type HudState, type RunResult } from '../engine/gameEngine';
-import { submitResult, type BestRecord } from '../state/storage';
+import { recordRun, type BestRecord } from '../state/storage';
 import { rgbCss } from '../engine/colors';
 import { IconPause } from '../components/icons';
 import { WordArt } from '../components/WordArt';
@@ -126,7 +126,13 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       maxCombo: result.totals.maxCombo,
       playedAt: Date.now(),
     };
-    const sub = submitResult(trackId, difficulty, record);
+    const sub = recordRun(trackId, difficulty, record, {
+      perfect: result.totals.perfect,
+      great: result.totals.great,
+      good: result.totals.good,
+      miss: result.totals.miss,
+      durationMs: chartRef.current?.durationMs ?? 0,
+    });
     if (sub.expertJustUnlocked) sfx.play('unlock');
     else if (sub.isNewRecord) sfx.play('record');
     navigate({

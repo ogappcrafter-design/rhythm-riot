@@ -1,6 +1,6 @@
 import { useApp } from '../state/appContext';
 import { WordArt } from '../components/WordArt';
-import { IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
+import { IconChart, IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
 import { sfx } from '../audio/sfx';
 
 /** Home / Main Menu (spec 8.1). Play, Song Select, Settings, Help. */
@@ -24,6 +24,11 @@ export function MainMenu() {
       <div className="stack" style={{ width: 'min(420px, 88vw)', marginTop: 8 }}>
         <button className="btn btn-primary btn-block row" style={{ justifyContent: 'center', gap: 10, fontSize: 20, padding: '18px' }} onClick={() => tap({ name: 'songselect' })}>
           <IconPlay size={22} color="#fff" /> PLAY
+        </button>
+        <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'profile' })}>
+          <span className="row" style={{ justifyContent: 'center', gap: 10 }}>
+            <IconChart size={20} /> Profile &amp; Stats
+          </span>
         </button>
         <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'settings' })}>
           <span className="row" style={{ justifyContent: 'center', gap: 10 }}>
