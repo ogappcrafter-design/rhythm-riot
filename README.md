@@ -99,24 +99,34 @@ That's it — song select, loading, difficulty gems and unlock logic all scale a
 
 ## Android / Google Play
 
-The native Android project is created by Capacitor and is **git-ignored** (regenerate anywhere):
+The native Android project **is committed** (`android/`), pre-configured, and opens straight in
+Android Studio. It's a Capacitor wrapper around the web build in `dist/`. Already set up:
+portrait lock, app name/id (`Rhythm Riot` / `com.rhythmriot.game`), custom launcher icons +
+splash (all densities, from `assets/icon.svg` / `assets/splash.svg`), and R8 minify on release.
+
+### Open it in Android Studio
 
 ```bash
-npm run build
-npx cap add android          # first time only — creates android/
-npx cap sync android         # copy the latest web build into the native project
-npx cap open android         # open in Android Studio
+npm install
+npm run build          # produce dist/ (prebuild also regenerates charts)
+npx cap sync android   # copy the latest web build + plugins into android/
+npx cap open android   # launches Android Studio on the android/ project
 ```
 
-**Portrait lock** (rhythm games are unplayable in the wrong orientation): in
-`android/app/src/main/AndroidManifest.xml`, add to the main `<activity>`:
-`android:screenOrientation="portrait"`.
+Then in Android Studio: let Gradle sync, pick a device/emulator, press **Run ▶**. You'll need the
+Android SDK (Android Studio installs it) — that's the one thing this repo can't bundle.
+
+- **After any web change** (`src/**`), re-run `npm run build && npx cap sync android` so the native
+  project picks it up. (`android/app/src/main/assets/public` holds the copied web build.)
+- **Regenerate icons/splash** after editing `assets/*.svg`:
+  `node assets/render.mjs && npx @capacitor/assets generate --android --iconBackgroundColor '#0a0c1e' --splashBackgroundColor '#05060f'`
+  (`npm i -D @capacitor/assets playwright-core` first — both are optional dev-only tools).
 
 ### Release build (AAB) + deobfuscation / mapping file
 
 1. In Android Studio: **Build → Generate Signed Bundle / APK → Android App Bundle**, create/select
-   your upload keystore, choose the **release** variant.
-2. Enable R8 shrinking so you ship a small, obfuscated binary. In `android/app/build.gradle`:
+   your upload keystore, choose the **release** variant. (Keystores are git-ignored — never commit them.)
+2. R8 minify + resource shrinking are **already enabled** in `android/app/build.gradle`:
    ```gradle
    buildTypes {
        release {
@@ -138,5 +148,6 @@ npx cap open android         # open in Android Studio
 ## What's intentionally out of scope for v1 (spec §10)
 
 Live audio remixing/stem-muting by mood · backend/leaderboards (local storage only) ·
->5 songs · multiplayer · hold-notes (the schema's `type` field already supports `"hold"`,
-no v1 chart uses it). These are noted in code comments where relevant, not half-built.
+>5 songs · multiplayer. (Hold notes — originally a v2 item — are now implemented: charts mark
+sustained holds and the engine handles press/hold/release.) Remaining deferrals are noted in
+code comments where relevant, not half-built.
