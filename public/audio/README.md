@@ -1,17 +1,16 @@
 # Track audio goes here
 
-The five launch tracks are **not committed** (they're large binaries, and were not
-provided with the build spec). Drop the audio files here with these **exact** filenames:
+The five launch tracks live here, committed as game content, with these **exact** filenames:
 
 | Filename | Track |
 |---|---|
 | `i_dont_care_tonight.mp3` | I Don't Care Tonight |
-| `where_the_inside_opens_wide.m4a` | Where the Inside Opens Wide |
-| `who_moved_the_moon.m4a` | Who Moved the Moon |
-| `dub_steps_trip.m4a` | Dub Steps Trip |
-| `everyday_g.m4a` | Everyday G |
+| `where_the_inside_opens_wide.mp4` | Where the Inside Opens Wide |
+| `who_moved_the_moon.mp4` | Who Moved the Moon |
+| `dub_steps_trip.mp4` | Dub Steps Trip |
+| `everyday_g.mp4` | Everyday G |
 
-> Both `.mp3` and `.m4a` (AAC) play natively in Chrome and Android WebView. The extension in
+> Both `.mp3` and `.mp4` (AAC) play natively in Chrome and Android WebView. The extension in
 > each row must match the `audioFile` field in `src/data/tracks.ts` — that's what the loader uses.
 
 The filenames must match the `audioFile` field in each `src/charts/<trackId>.json`

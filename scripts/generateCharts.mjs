@@ -30,10 +30,10 @@ const ANALYSIS_PATH = join(__dirname, 'analysis_real.json');
 
 const TRACKS = [
   { id: 'i_dont_care_tonight', title: "I Don't Care Tonight", audioFile: 'i_dont_care_tonight.mp3' },
-  { id: 'where_the_inside_opens_wide', title: 'Where the Inside Opens Wide', audioFile: 'where_the_inside_opens_wide.m4a' },
-  { id: 'who_moved_the_moon', title: 'Who Moved the Moon', audioFile: 'who_moved_the_moon.m4a' },
-  { id: 'dub_steps_trip', title: 'Dub Steps Trip', audioFile: 'dub_steps_trip.m4a' },
-  { id: 'everyday_g', title: 'Everyday G', audioFile: 'everyday_g.m4a' },
+  { id: 'where_the_inside_opens_wide', title: 'Where the Inside Opens Wide', audioFile: 'where_the_inside_opens_wide.mp4' },
+  { id: 'who_moved_the_moon', title: 'Who Moved the Moon', audioFile: 'who_moved_the_moon.mp4' },
+  { id: 'dub_steps_trip', title: 'Dub Steps Trip', audioFile: 'dub_steps_trip.mp4' },
+  { id: 'everyday_g', title: 'Everyday G', audioFile: 'everyday_g.mp4' },
 ];
 
 const HIT_WINDOWS = {

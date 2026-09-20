@@ -7,7 +7,7 @@ beat grid, onset list (with per-onset strength), and normalized RMS energy envel
 scripts/analysis_real.json. That file is the input to scripts/generateCharts.mjs, which
 turns it into the committed per-track chart JSON.
 
-Decoding: the .m4a/.mp3 files are transcoded to a temp WAV via the ffmpeg binary bundled
+Decoding: the .mp4/.mp3 files are transcoded to a temp WAV via the ffmpeg binary bundled
 with imageio-ffmpeg (no system ffmpeg required), then loaded with librosa/soundfile.
 
 Run:  python3 scripts/analyze.py
@@ -31,10 +31,10 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 # Must match src/data/tracks.ts (id -> audio filename).
 TRACKS = [
     ("i_dont_care_tonight", "i_dont_care_tonight.mp3"),
-    ("where_the_inside_opens_wide", "where_the_inside_opens_wide.m4a"),
-    ("who_moved_the_moon", "who_moved_the_moon.m4a"),
-    ("dub_steps_trip", "dub_steps_trip.m4a"),
-    ("everyday_g", "everyday_g.m4a"),
+    ("where_the_inside_opens_wide", "where_the_inside_opens_wide.mp4"),
+    ("who_moved_the_moon", "who_moved_the_moon.mp4"),
+    ("dub_steps_trip", "dub_steps_trip.mp4"),
+    ("everyday_g", "everyday_g.mp4"),
 ]
 
 SR = 22050
