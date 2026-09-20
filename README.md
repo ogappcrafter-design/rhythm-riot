@@ -66,9 +66,15 @@ arc (from the chart's `moodCurve`) — the "secret premium stat" shown on the re
 
 ### Chart pipeline
 
-Charts are **generated at build time**, never on-device. `scripts/generateCharts.mjs` reads the
-librosa analysis (tempo, duration, onset density, energy stats) and synthesizes deterministic,
-energy-weighted charts on a tempo-derived beat grid:
+Charts are **generated at build time**, never on-device, in two stages:
+
+1. **`scripts/analyze.py`** runs `librosa` over the real audio in `public/audio/` and writes
+   `scripts/analysis_real.json` — the full beat grid, every detected onset (with strength +
+   local energy), and the normalized RMS energy envelope. (Decodes `.m4a`/`.mp3` via the ffmpeg
+   binary bundled with `imageio-ffmpeg`; no system ffmpeg needed.)
+   Regenerate with: `pip install librosa imageio-ffmpeg && python3 scripts/analyze.py`.
+2. **`scripts/generateCharts.mjs`** turns those real onsets into per-difficulty charts. Notes are
+   anchored to actual detected hits (Hard lands on the real onset times), not a synthesized grid:
 
 - **Easy** — 3 lanes, ~50% of onsets, strong beats only, ≥250 ms spacing
 - **Medium** — 4 lanes, ~75% of onsets
