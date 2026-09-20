@@ -27,12 +27,5 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Audio source stems are large binaries — dropped in per environment.
-# Keep the folder + README but ignore the actual track audio.
-public/audio/*.mp3
-public/audio/*.wav
-public/audio/*.ogg
-public/audio/*.m4a
-
 # TS build info
 *.tsbuildinfo

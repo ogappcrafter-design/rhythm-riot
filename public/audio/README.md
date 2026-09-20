@@ -23,4 +23,5 @@ file and transparently falls back to a `performance.now()` timeline, so the trac
 "Silent mode" banner appears in gameplay so it's obvious audio is absent. Once the real
 files are dropped in, everything syncs to the audio automatically — no code change needed.
 
-> These files are `.gitignore`d (`public/audio/*.mp3`) so they never bloat the repo.
+> These files **are committed** — they're the game's actual content and must ship in the
+> build. (Filenames are lowercase snake_case to match the chart `audioFile` fields.)
