@@ -1,21 +1,37 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ============================================================================
+# Rhythm Riot — R8 / ProGuard keep rules for the minified release build.
+# Capacitor loads plugins and bridges JS↔native via reflection, so those classes
+# and annotated members must survive shrinking or the release build will crash.
+# ============================================================================
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- Keep line numbers so crash stack traces stay readable via mapping.txt ---
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+-keepattributes *Annotation*,Signature,Exceptions,InnerClasses,EnclosingMethod
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# --- Capacitor core + bridge ---
+-keep class com.getcapacitor.** { *; }
+-keep interface com.getcapacitor.** { *; }
+-keep public class * extends com.getcapacitor.Plugin
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod public *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# --- First-party Capacitor plugins (e.g. @capacitor/preferences) ---
+-keep class com.capacitorjs.plugins.** { *; }
+
+# --- Cordova compatibility layer (Capacitor bundles it) ---
+-keep class org.apache.cordova.** { *; }
+
+# --- JavaScript interfaces exposed to the WebView ---
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# --- AndroidX WebKit ---
+-keep class androidx.webkit.** { *; }
+
+# --- Silence notes about optional/again-reflected classes ---
+-dontwarn com.getcapacitor.**
+-dontwarn org.apache.cordova.**

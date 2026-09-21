@@ -1,13 +1,20 @@
+import { Preferences } from '@capacitor/preferences';
 import type { Difficulty } from '../engine/chartTypes';
 import type { LetterGrade } from '../engine/grading';
 
 /**
- * Local persistence (spec 2.2 / 9). Everything is stored in localStorage under a single
- * namespaced key, read/written through a guarded facade so a private-mode or quota failure
- * degrades gracefully instead of crashing the game.
+ * Local persistence (spec 2.2 / 9). All progress — best scores, grades, song completion,
+ * Expert unlocks, lifetime stats and settings — is stored under a single namespaced key.
  *
- * Backend account-sync is explicitly out of scope for v1 (spec Section 10) — the shape here
- * is designed so a sync layer can be layered on later without changing callers.
+ * Durability: on native (Android/iOS via Capacitor) writes go to Capacitor Preferences, which
+ * persists to the OS's native key/value store (SharedPreferences on Android) and survives
+ * reliably across launches — unlike WebView localStorage, which the system may evict. We keep an
+ * in-memory cache for synchronous reads during render, hydrate it from Preferences at startup
+ * (see initStorage), and write-through to both Preferences and localStorage on every change.
+ *
+ * Every read/write is guarded so a private-mode / quota / plugin failure degrades gracefully.
+ * Backend account-sync stays out of scope for v1 (spec Section 10); this shape lets it layer on
+ * later without changing callers.
  */
 
 const KEY = 'rhythm_riot_save_v1';
@@ -95,20 +102,45 @@ function defaultSave(): SaveData {
 
 let cache: SaveData | null = null;
 
+/** Merge a parsed (possibly partial/legacy) save over defaults. */
+function hydrate(parsed: Partial<SaveData>): SaveData {
+  return {
+    ...defaultSave(),
+    ...parsed,
+    settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+    bests: parsed.bests ?? {},
+    expertUnlocked: parsed.expertUnlocked ?? {},
+    lifetime: { ...EMPTY_LIFETIME, ...(parsed.lifetime ?? {}) },
+  };
+}
+
+/**
+ * Hydrate the in-memory cache from durable native storage. Call once at startup and await it
+ * before rendering so the first synchronous reads see the saved data. Falls back to (and migrates
+ * from) legacy localStorage, then to defaults. Safe to call more than once.
+ */
+export async function initStorage(): Promise<void> {
+  try {
+    const { value } = await Preferences.get({ key: KEY });
+    if (value) {
+      cache = hydrate(JSON.parse(value) as Partial<SaveData>);
+      return;
+    }
+  } catch {
+    /* plugin unavailable (older web view) — fall back below */
+  }
+  // No native record yet: adopt any legacy localStorage save (or defaults) and write it through
+  // so it becomes durable from here on.
+  cache = loadSave();
+  persist();
+}
+
 export function loadSave(): SaveData {
   if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SaveData>;
-      cache = {
-        ...defaultSave(),
-        ...parsed,
-        settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-        bests: parsed.bests ?? {},
-        expertUnlocked: parsed.expertUnlocked ?? {},
-        lifetime: { ...EMPTY_LIFETIME, ...(parsed.lifetime ?? {}) },
-      };
+      cache = hydrate(JSON.parse(raw) as Partial<SaveData>);
       return cache;
     }
   } catch {
@@ -120,10 +152,15 @@ export function loadSave(): SaveData {
 
 function persist(): void {
   if (!cache) return;
+  const serialized = JSON.stringify(cache);
+  // Durable native write (SharedPreferences on Android). Fire-and-forget; guarded.
+  Preferences.set({ key: KEY, value: serialized }).catch(() => {
+    /* plugin/native failure — the localStorage mirror below still holds it */
+  });
   try {
-    localStorage.setItem(KEY, JSON.stringify(cache));
+    localStorage.setItem(KEY, serialized);
   } catch {
-    /* quota / private mode — keep in-memory only */
+    /* quota / private mode — native write above is the source of truth */
   }
 }
 
