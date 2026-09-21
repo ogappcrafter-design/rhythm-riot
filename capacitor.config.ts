@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.rhythmriot.game',
+  appId: 'rhythm.riot.babylovebabylove.com',
   appName: 'Rhythm Riot',
   webDir: 'dist',
   backgroundColor: '#05060f',
