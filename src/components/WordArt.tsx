@@ -39,9 +39,11 @@ export function WordArt({
   const fid = `wa-glow-${id}`;
 
   // Estimate a viewBox from character count so the SVG scales responsively.
-  const approxWidth = Math.max(text.length * size * 0.56, size * 2);
+  // Arial Black italic caps are wide (~0.62em) + stroke/glow padding — a too-small factor
+  // lets glyphs spill past the viewBox and (with overflow visible) off-screen, so pad generously.
+  const approxWidth = Math.max(text.length * size * 0.66 + size * 0.8, size * 2.2);
   const height = size * 1.5;
-  const anchorX = align === 'start' ? size * 0.1 : align === 'end' ? approxWidth - size * 0.1 : approxWidth / 2;
+  const anchorX = align === 'start' ? size * 0.35 : align === 'end' ? approxWidth - size * 0.35 : approxWidth / 2;
 
   return (
     <svg

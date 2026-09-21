@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <radialGradient id="bg" cx="0.32" cy="0.4" r="0.9">
+      <stop offset="0" stop-color="#1b1745"/>
+      <stop offset="0.55" stop-color="#0a0c1e"/>
+      <stop offset="1" stop-color="#05060f"/>
+    </radialGradient>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#b9a3ff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#8ef0ff"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="shard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ef0ff"/>
+      <stop offset="0.5" stop-color="#7c5cff"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <!-- lane hint -->
+  <g opacity="0.15" stroke="#ffffff" stroke-width="2">
+    <line x1="720" y1="60" x2="640" y2="470"/>
+    <line x1="800" y1="60" x2="800" y2="470"/>
+    <line x1="880" y1="60" x2="960" y2="470"/>
+  </g>
+  <!-- stars falling -->
+  <g fill="url(#shard)" filter="url(#glow)">
+    <path d="M760 150 l7 18 19 2 -14 13 4 19 -16 -10 -16 10 4 -19 -14 -13 19 -2 z"/>
+    <path d="M840 250 l6 14 16 2 -12 11 3 16 -13 -8 -13 8 3 -16 -12 -11 16 -2 z"/>
+    <path d="M690 320 l5 12 14 1 -11 10 3 14 -11 -7 -11 7 3 -14 -11 -10 14 -1 z"/>
+  </g>
+  <!-- glowing shard mark -->
+  <g filter="url(#glow)" transform="translate(120 250) scale(9)">
+    <path d="M0 -12 3.4 -3 12 -2 5 3 7 12 0 6.6 -7 12 -5 3 -12 -2 -3.4 -3Z" fill="url(#shard)"/>
+  </g>
+  <!-- wordmark -->
+  <g font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" filter="url(#glow)">
+    <text x="250" y="235" font-size="96" fill="url(#g1)" stroke="#0a0820" stroke-width="3" paint-order="stroke">RHYTHM</text>
+    <text x="250" y="330" font-size="120" fill="url(#g2)" stroke="#0a0820" stroke-width="3" paint-order="stroke">RIOT</text>
+  </g>
+  <text x="252" y="382" font-family="Arial, sans-serif" font-weight="700" font-size="26" letter-spacing="6" fill="#a6a9cf">TAP · HOLD · RIDE THE MOOD</text>
+</svg>
