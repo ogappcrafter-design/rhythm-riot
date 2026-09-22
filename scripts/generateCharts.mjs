@@ -44,19 +44,22 @@ const HIT_WINDOWS = {
 };
 
 const DIFF_CONFIG = {
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.16 },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.18 },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.18 },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.2 },
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.26 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.26 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.24 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.26 },
 };
 
-// Hold-note tuning (spec 5.4 "hold" type). A note becomes a sustained hold when the gap to the
-// next note IN THE SAME LANE is long enough — so a hold can span other lanes' notes but never
-// doubles up in its own lane (you're holding it). Tail ends a hair before that next same-lane note.
-const HOLD_MIN_GAP_MS = 470; // minimum SAME-LANE gap to consider a hold
-const HOLD_RELEASE_BUFFER_MS = 130; // tail ends this far before the next same-lane note
-const HOLD_MIN_MS = 360; // shorter than this isn't worth being a hold
-const HOLD_CAP_MS = 3200; // never longer than this
+// Hold-note tuning (spec 5.4 "hold" type). A note becomes a hold where the SONG ITSELF sustains:
+// we read the RMS energy envelope and only place a hold where energy stays up after the hit
+// (a pad / held note / sustained synth), with the hold's LENGTH matching how long it sustains.
+// The tail always ends a hair before the next note in the SAME lane, so a hold can span other
+// lanes' notes but never doubles up in its own lane.
+const HOLD_RELEASE_BUFFER_MS = 120; // tail ends this far before the next same-lane note
+const HOLD_MIN_MS = 320; // shorter than this isn't worth being a hold
+const HOLD_CAP_MS = 3400; // never longer than this
+const SUSTAIN_DROP_FRAC = 0.45; // sustain "ends" when energy falls below this fraction of the peak
+const SUSTAIN_FLOOR = 0.12; // ...or below this absolute (normalized) energy
 
 /* ------------------------------ RNG ------------------------------ */
 
@@ -164,9 +167,8 @@ function assignLanes(trackId, diff, notes, laneCount) {
   });
 }
 
-// Mark holds using the gap to the NEXT NOTE IN THE SAME LANE, so a hold can span other lanes'
-// notes but never overlaps another note in its own lane. Mutates notes in place (type + holdMs).
-function markHolds(trackId, diff, notes) {
+// Place holds on sustained parts of the song (see tuning above). Mutates notes (type + holdMs).
+function markHolds(trackId, diff, notes, analysis) {
   const cfg = DIFF_CONFIG[diff];
   const rng = mulberry32(hashSeed(`${trackId}::${diff}::holds`));
 
@@ -179,14 +181,33 @@ function markHolds(trackId, diff, notes) {
     lastByLane[lane] = i;
   }
 
+  const env = analysis.energyEnvelope;
+
+  // How long the song's energy stays "up" after a note (a sustained note in the mix),
+  // capped by `room` (the space before the next same-lane note).
+  const sustainMsAt = (tMs, room) => {
+    let peak = 0;
+    for (let dt = 0; dt <= 300; dt += 100) peak = Math.max(peak, sampleEnvelope(env, tMs + dt));
+    if (peak < 0.16) return 0; // too quiet to be a real held note
+    const threshold = Math.max(SUSTAIN_DROP_FRAC * peak, SUSTAIN_FLOOR);
+    for (let tt = 250; tt <= room; tt += 90) {
+      if (sampleEnvelope(env, tMs + tt) < threshold) return tt;
+    }
+    return room;
+  };
+
   const candidates = [];
   for (let i = 0; i < notes.length; i++) {
     const j = nextSameLane[i];
-    if (j < 0) continue;
-    const gap = notes[j].timeMs - notes[i].timeMs;
-    if (gap >= HOLD_MIN_GAP_MS && notes[i].energy >= 0.28) candidates.push({ i, gap });
+    const nextT = j < 0 ? analysis.durationMs : notes[j].timeMs;
+    const room = Math.min(nextT - notes[i].timeMs - HOLD_RELEASE_BUFFER_MS, HOLD_CAP_MS);
+    if (room < HOLD_MIN_MS) continue;
+    const sustain = sustainMsAt(notes[i].timeMs, room);
+    if (sustain < HOLD_MIN_MS) continue; // only where the music actually sustains
+    candidates.push({ i, holdMs: Math.min(sustain, room) });
   }
-  candidates.sort((a, b) => b.gap - a.gap + (rng() - 0.5) * 60);
+  // Prefer the longest, most-sustained holds; slight seeded jitter to vary placement.
+  candidates.sort((a, b) => b.holdMs - a.holdMs + (rng() - 0.5) * 120);
 
   const targetHolds = Math.round(notes.length * cfg.holdFraction);
   const lastHoldTimeByLane = {};
@@ -196,11 +217,9 @@ function markHolds(trackId, diff, notes) {
     const n = notes[c.i];
     // Don't stack two holds too close in the same lane.
     const lastT = lastHoldTimeByLane[n.lane];
-    if (lastT !== undefined && n.timeMs - lastT < 1600) continue;
-    const holdMs = Math.min(c.gap - HOLD_RELEASE_BUFFER_MS, HOLD_CAP_MS);
-    if (holdMs < HOLD_MIN_MS) continue;
+    if (lastT !== undefined && n.timeMs - lastT < 1200) continue;
     n.type = 'hold';
-    n.holdMs = holdMs;
+    n.holdMs = Math.round(c.holdMs);
     lastHoldTimeByLane[n.lane] = n.timeMs;
     placed++;
   }
@@ -218,7 +237,7 @@ function buildDifficulty(trackId, diff, analysis) {
   const target = Math.round(analysis.numOnsets * cfg.onsetFraction);
   const picked = selectNotes(candidates, target, cfg.minSpacingMs);
   const notes = assignLanes(trackId, diff, picked, cfg.laneCount);
-  markHolds(trackId, diff, notes);
+  markHolds(trackId, diff, notes, analysis);
   return finalizeNotes(notes);
 }
 
@@ -249,7 +268,7 @@ function buildExpert(trackId, analysis) {
 
   const all = [...base, ...extras].sort((a, b) => a.tMs - b.tMs);
   const notes = assignLanes(trackId, 'expert', all, cfg.laneCount);
-  markHolds(trackId, 'expert', notes);
+  markHolds(trackId, 'expert', notes, analysis);
   return finalizeNotes(notes);
 }
 

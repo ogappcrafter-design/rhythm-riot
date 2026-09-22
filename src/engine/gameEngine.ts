@@ -104,6 +104,7 @@ const RAINBOW: RGB[] = [
   [96, 208, 255],
   [190, 128, 255],
 ];
+const ENCOURAGE = ['KEEP GOING!', "DON'T GIVE UP!", 'YOU GOT THIS!', 'SHAKE IT OFF!'];
 function lightenRGB(c: RGB, t: number): RGB {
   return [
     Math.round(c[0] + (255 - c[0]) * t),
@@ -142,7 +143,11 @@ export class GameEngine {
   private finished = false;
   private audioEndedAt = 0; // perf time the audio 'ended' event fired (0 = not yet)
   private nearEndSince = 0; // perf time position first reached the song end (stall fallback)
-  private lastComboTier = 0; // 0 / 100 / 200 — for milestone SFX + effects
+  private lastComboTier = 0; // 0 / 50 / 100 — for milestone SFX + effects
+  private consecutiveMiss = 0;
+  private missFlash = 0; // red screen-edge flash, decays to 0
+  private encourageUntil = 0; // perf time the encouragement banner stops
+  private encourageText = '';
 
   private dpr = 1;
   private w = 0;
@@ -312,21 +317,28 @@ export class GameEngine {
     n.judgement = j;
     this.totals[j] += 1;
     if (j === 'miss') {
-      // Encouragement cue when a long streak breaks (DDR-style "keep going").
-      if (this.combo >= 40) sfx.play('rally');
       this.combo = 0;
       this.lastComboTier = 0;
+      this.missFlash = 1; // red screen-edge flash
+      this.consecutiveMiss += 1;
+      // Encouragement after 5 misses in a row ("keep going / don't give up").
+      if (this.consecutiveMiss % 5 === 0) {
+        sfx.play('rally');
+        this.encourageText = ENCOURAGE[(this.consecutiveMiss / 5 - 1) % ENCOURAGE.length];
+        this.encourageUntil = performance.now() + 1600;
+      }
     } else {
+      this.consecutiveMiss = 0;
       this.combo += 1;
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       const comboMul = 1 + (Math.min(this.combo, 100) / 100) * 0.5;
       this.score += Math.round(JUDGEMENT_SCORE[j] * comboMul);
-      // Combo-tier milestones (100 = glow up, 200 = rainbow + sparkles).
-      if (this.combo >= 200 && this.lastComboTier < 200) {
-        this.lastComboTier = 200;
-        sfx.play('combo200');
-      } else if (this.combo >= 100 && this.lastComboTier < 100) {
+      // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles).
+      if (this.combo >= 100 && this.lastComboTier < 100) {
         this.lastComboTier = 100;
+        sfx.play('combo200');
+      } else if (this.combo >= 50 && this.lastComboTier < 50) {
+        this.lastComboTier = 50;
         sfx.play('combo100');
       }
     }
@@ -401,6 +413,7 @@ export class GameEngine {
       const target = this.lanePressed[i] ? 0.5 : 0;
       this.laneFlash[i] = Math.max(target, this.laneFlash[i] - dt / 190);
     }
+    if (this.missFlash > 0) this.missFlash = Math.max(0, this.missFlash - dt / 450);
     for (let i = this.floaters.length - 1; i >= 0; i--) {
       const f = this.floaters[i];
       f.life -= dt / 650;
@@ -587,14 +600,54 @@ export class GameEngine {
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, this.w, this.h);
 
-    const comboGlow = this.combo >= 200 ? 1 : this.combo >= 100 ? 0.6 : 0;
+    const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.6 : 0;
     this.drawLanes(cw, moodNorm, comboGlow);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs, cw, moodNorm);
     this.drawHitZone(cw, moodNorm);
-    if (this.combo >= 200) this.drawSideSparkles(songMs);
+    if (this.combo >= 100) this.drawSideSparkles(songMs);
     this.drawCombo(moodNorm, cw.glow);
     this.drawFloaters();
+    this.drawMissFlash();
+    this.drawEncouragement();
+  }
+
+  /** Red vignette pulse at the screen edges when you miss — makes misses obvious. */
+  private drawMissFlash(): void {
+    if (this.missFlash <= 0.01) return;
+    const ctx = this.ctx;
+    const a = this.missFlash;
+    const g = ctx.createRadialGradient(
+      this.w / 2,
+      this.h / 2,
+      this.h * 0.28,
+      this.w / 2,
+      this.h / 2,
+      this.h * 0.62,
+    );
+    g.addColorStop(0, 'rgba(255,40,70,0)');
+    g.addColorStop(1, `rgba(255,30,60,${0.5 * a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, this.w, this.h);
+  }
+
+  /** Big centered encouragement banner after a run of misses. */
+  private drawEncouragement(): void {
+    const now = performance.now();
+    if (now >= this.encourageUntil) return;
+    const remain = (this.encourageUntil - now) / 1600; // 1 -> 0
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const scale = 1 + (1 - remain) * 0.15;
+    ctx.globalAlpha = Math.min(1, remain * 2);
+    ctx.font = `900 italic ${Math.round(40 * scale)}px system-ui, sans-serif`;
+    ctx.fillStyle = 'rgba(255,120,140,0.35)';
+    ctx.fillText(this.encourageText, this.w / 2, this.h * 0.5);
+    ctx.fillStyle = '#ffe28a';
+    ctx.fillText(this.encourageText, this.w / 2, this.h * 0.5 - 2);
+    ctx.restore();
   }
 
   // Glowing sparkles drifting up the left/right edges once past a 200 combo.
@@ -687,8 +740,8 @@ export class GameEngine {
   private drawNotes(songMs: number, cw: ReturnType<typeof moodColorway>, moodNorm: number): void {
     const ctx = this.ctx;
     const tapMs = songMs - this.opts.latencyOffsetMs;
-    // At 200+ combo the stars go rainbow (hue cycles over time); otherwise mood-graded glow.
-    const rainbow = this.combo >= 200;
+    // At 100+ combo the stars go rainbow (hue cycles over time); otherwise mood-graded glow.
+    const rainbow = this.combo >= 100;
     let spriteKey: number;
     let rimColor: RGB;
     if (rainbow) {
@@ -826,9 +879,21 @@ export class GameEngine {
     for (const f of this.floaters) {
       const a = Math.max(0, Math.min(1, f.life));
       ctx.globalAlpha = a;
-      ctx.font = `900 ${20 + (1 - f.life) * 10}px system-ui, sans-serif`;
-      ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x, f.y);
+      const isMiss = f.text === 'MISS';
+      if (isMiss) {
+        // Bigger, bolder, with a little shake so a miss is unmistakable.
+        const shake = Math.sin(f.life * 40) * (1 - f.life) * 5;
+        const size = 34 + (1 - f.life) * 12;
+        ctx.font = `900 italic ${size}px system-ui, sans-serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillText(f.text, f.x + shake + 2, f.y + 2);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x + shake, f.y);
+      } else {
+        ctx.font = `900 ${20 + (1 - f.life) * 10}px system-ui, sans-serif`;
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x, f.y);
+      }
     }
     ctx.globalAlpha = 1;
     ctx.restore();
