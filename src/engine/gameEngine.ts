@@ -95,6 +95,22 @@ const JUDGE_COLORS: Record<Judgement, string> = {
   good: '#ffe98a',
   miss: '#ff7a8a',
 };
+// Bright hues cycled through note stars once the player passes a 200 combo.
+const RAINBOW: RGB[] = [
+  [255, 96, 128],
+  [255, 176, 64],
+  [255, 240, 96],
+  [120, 255, 150],
+  [96, 208, 255],
+  [190, 128, 255],
+];
+function lightenRGB(c: RGB, t: number): RGB {
+  return [
+    Math.round(c[0] + (255 - c[0]) * t),
+    Math.round(c[1] + (255 - c[1]) * t),
+    Math.round(c[2] + (255 - c[2]) * t),
+  ];
+}
 
 export class GameEngine {
   private opts: EngineOptions;
@@ -124,6 +140,9 @@ export class GameEngine {
   private paused = false;
   private lastFrame = 0;
   private finished = false;
+  private audioEndedAt = 0; // perf time the audio 'ended' event fired (0 = not yet)
+  private nearEndSince = 0; // perf time position first reached the song end (stall fallback)
+  private lastComboTier = 0; // 0 / 100 / 200 — for milestone SFX + effects
 
   private dpr = 1;
   private w = 0;
@@ -189,6 +208,12 @@ export class GameEngine {
   start(): void {
     if (this.running) return;
     this.running = true;
+    // When the real audio track ends, currentTime stops advancing (and the clock clamps
+    // position to it), so the frame loop can't reach the finish threshold on its own — the
+    // 'ended' event is what drives the results screen for a real track.
+    this.opts.clock.onEnd(() => {
+      if (!this.audioEndedAt) this.audioEndedAt = performance.now();
+    });
     this.lastFrame = performance.now();
     this.raf = requestAnimationFrame(this.frame);
   }
@@ -287,12 +312,23 @@ export class GameEngine {
     n.judgement = j;
     this.totals[j] += 1;
     if (j === 'miss') {
+      // Encouragement cue when a long streak breaks (DDR-style "keep going").
+      if (this.combo >= 40) sfx.play('rally');
       this.combo = 0;
+      this.lastComboTier = 0;
     } else {
       this.combo += 1;
       if (this.combo > this.maxCombo) this.maxCombo = this.combo;
       const comboMul = 1 + (Math.min(this.combo, 100) / 100) * 0.5;
       this.score += Math.round(JUDGEMENT_SCORE[j] * comboMul);
+      // Combo-tier milestones (100 = glow up, 200 = rainbow + sparkles).
+      if (this.combo >= 200 && this.lastComboTier < 200) {
+        this.lastComboTier = 200;
+        sfx.play('combo200');
+      } else if (this.combo >= 100 && this.lastComboTier < 100) {
+        this.lastComboTier = 100;
+        sfx.play('combo100');
+      }
     }
     const energy = sampleMoodCurve(this.opts.chart, n.timeMs);
     this.mood.registerJudgement(j, this.combo, energy);
@@ -375,7 +411,17 @@ export class GameEngine {
     this.render(songMs);
     this.emitHud(songMs, dt);
 
-    if (!this.finished && songMs >= this.opts.chart.durationMs + 400) this.finish();
+    // ---- reliable song-end detection ----
+    if (!this.finished) {
+      const durMs = this.opts.chart.durationMs;
+      const near = songMs >= durMs - 60;
+      if (near && !this.nearEndSince) this.nearEndSince = now;
+      if (!near) this.nearEndSince = 0;
+      const endedByEvent = this.audioEndedAt > 0 && now - this.audioEndedAt >= 350;
+      const endedByStall = this.nearEndSince > 0 && now - this.nearEndSince >= 1200; // audio froze at end
+      const endedByFallback = songMs >= durMs + 600; // silent/fallback clock isn't clamped
+      if (endedByEvent || endedByStall || endedByFallback) this.finish();
+    }
   };
 
   private autoMiss(songMs: number): void {
@@ -453,8 +499,8 @@ export class GameEngine {
   }
 
   // ---- star sprite cache ---------------------------------------------
-  private getStarSprite(bucket: number, glow: RGB): HTMLCanvasElement {
-    const cached = this.starSprites.get(bucket);
+  private getStarSprite(key: number, rim: RGB): HTMLCanvasElement {
+    const cached = this.starSprites.get(key);
     if (cached) return cached;
     const S = STAR_SPRITE_SIZE;
     const cv = document.createElement('canvas');
@@ -465,6 +511,7 @@ export class GameEngine {
     const cy = S / 2;
     const outer = S * 0.36;
     const inner = outer * 0.44;
+    const rimBright = lightenRGB(rim, 0.3);
 
     const starPath = (r0: number, r1: number) => {
       c.beginPath();
@@ -479,38 +526,40 @@ export class GameEngine {
       c.closePath();
     };
 
-    // 1) Outer glow halo (drawn once — no per-frame shadowBlur).
+    // 1) Big soft outer glow halo (brighter than before — the stars now really pop).
     c.save();
-    c.shadowBlur = S * 0.28;
-    c.shadowColor = rgbCss(glow, 1);
-    c.fillStyle = rgbCss(glow, 0.9);
+    c.shadowBlur = S * 0.38;
+    c.shadowColor = rgbCss(rimBright, 1);
+    c.fillStyle = rgbCss(rimBright, 1);
     starPath(outer, inner);
     c.fill();
+    c.shadowBlur = S * 0.22;
+    c.fill(); // second pass intensifies the glow
     c.restore();
 
-    // 2) Bright rim.
+    // 2) Bright thick rim.
     c.lineJoin = 'round';
-    c.lineWidth = S * 0.05;
-    c.strokeStyle = rgbCss(glow, 1);
-    starPath(outer * 0.92, inner * 0.92);
+    c.lineWidth = S * 0.07;
+    c.strokeStyle = rgbCss(lightenRGB(rim, 0.55), 1);
+    starPath(outer * 0.9, inner * 0.9);
     c.stroke();
 
     // 3) Negative-black core with a 3D radial shade (dark center → slightly lifted edge).
     const g = c.createRadialGradient(cx - outer * 0.22, cy - outer * 0.28, outer * 0.1, cx, cy, outer);
-    g.addColorStop(0, '#161826');
-    g.addColorStop(0.55, '#090a12');
-    g.addColorStop(1, '#020208');
+    g.addColorStop(0, '#1b1e30');
+    g.addColorStop(0.55, '#0b0d18');
+    g.addColorStop(1, '#03030a');
     c.fillStyle = g;
-    starPath(outer * 0.86, inner * 0.86);
+    starPath(outer * 0.84, inner * 0.84);
     c.fill();
 
     // 4) Specular highlight for the 3D pop.
-    c.fillStyle = 'rgba(255,255,255,0.75)';
+    c.fillStyle = 'rgba(255,255,255,0.85)';
     c.beginPath();
-    c.ellipse(cx - outer * 0.24, cy - outer * 0.3, outer * 0.14, outer * 0.09, -0.5, 0, Math.PI * 2);
+    c.ellipse(cx - outer * 0.24, cy - outer * 0.3, outer * 0.15, outer * 0.1, -0.5, 0, Math.PI * 2);
     c.fill();
 
-    this.starSprites.set(bucket, cv);
+    this.starSprites.set(key, cv);
     return cv;
   }
 
@@ -538,12 +587,41 @@ export class GameEngine {
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, this.w, this.h);
 
-    this.drawLanes(cw, moodNorm);
+    const comboGlow = this.combo >= 200 ? 1 : this.combo >= 100 ? 0.6 : 0;
+    this.drawLanes(cw, moodNorm, comboGlow);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs, cw, moodNorm);
     this.drawHitZone(cw, moodNorm);
+    if (this.combo >= 200) this.drawSideSparkles(songMs);
     this.drawCombo(moodNorm, cw.glow);
     this.drawFloaters();
+  }
+
+  // Glowing sparkles drifting up the left/right edges once past a 200 combo.
+  private drawSideSparkles(songMs: number): void {
+    if (this.opts.visualIntensity < 0.4) return;
+    const ctx = this.ctx;
+    const per = 9;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const hueBase = Math.floor(songMs / 110) % RAINBOW.length;
+    for (let side = 0; side < 2; side++) {
+      const baseX = side === 0 ? 14 : this.w - 14;
+      for (let i = 0; i < per; i++) {
+        const seed = i * 97 + side * 13;
+        const t = ((songMs / 1400) + i / per) % 1;
+        const y = this.h - t * this.h;
+        const x = baseX + Math.sin(songMs / 300 + seed) * 10;
+        const tw = 0.5 + 0.5 * Math.sin(songMs / 120 + seed);
+        const col = RAINBOW[(hueBase + i) % RAINBOW.length];
+        const rr = 1.5 + tw * 2.5;
+        ctx.fillStyle = rgbCss(col, 0.5 * tw);
+        ctx.beginPath();
+        ctx.arc(x, y, rr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   private drawFlow(color: RGB, moodNorm: number): void {
@@ -560,16 +638,32 @@ export class GameEngine {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  private drawLanes(cw: ReturnType<typeof moodColorway>, moodNorm: number): void {
+  private drawLanes(cw: ReturnType<typeof moodColorway>, moodNorm: number, comboGlow: number): void {
     const ctx = this.ctx;
+    // Combo glow: at 100+ the grid brightens; at 200+ it blazes.
+    if (comboGlow > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineWidth = 6 + comboGlow * 6;
+      for (let i = 0; i <= this.laneCount; i++) {
+        const topX = this.laneCenterX(i - 0.5, 0);
+        const botX = this.laneCenterX(i - 0.5, 1);
+        ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.3), 0.14 * comboGlow);
+        ctx.beginPath();
+        ctx.moveTo(topX, this.topY);
+        ctx.lineTo(botX, this.hitY);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     // High-contrast WHITE lane lines (opposite of the dark stars).
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 + comboGlow;
     for (let i = 0; i <= this.laneCount; i++) {
       const topX = this.laneCenterX(i - 0.5, 0);
       const botX = this.laneCenterX(i - 0.5, 1);
       const lg = ctx.createLinearGradient(topX, this.topY, botX, this.hitY);
       lg.addColorStop(0, 'rgba(255,255,255,0.05)');
-      lg.addColorStop(1, `rgba(255,255,255,${0.5 + moodNorm * 0.35})`);
+      lg.addColorStop(1, `rgba(255,255,255,${Math.min(1, 0.5 + moodNorm * 0.35 + comboGlow * 0.25)})`);
       ctx.strokeStyle = lg;
       ctx.beginPath();
       ctx.moveTo(topX, this.topY);
@@ -593,10 +687,21 @@ export class GameEngine {
   private drawNotes(songMs: number, cw: ReturnType<typeof moodColorway>, moodNorm: number): void {
     const ctx = this.ctx;
     const tapMs = songMs - this.opts.latencyOffsetMs;
-    const bucket = Math.round(moodNorm * 5);
-    const sprite = this.getStarSprite(bucket, cw.glow);
+    // At 200+ combo the stars go rainbow (hue cycles over time); otherwise mood-graded glow.
+    const rainbow = this.combo >= 200;
+    let spriteKey: number;
+    let rimColor: RGB;
+    if (rainbow) {
+      const hi = Math.floor(songMs / 110) % RAINBOW.length;
+      spriteKey = 1000 + hi;
+      rimColor = RAINBOW[hi];
+    } else {
+      spriteKey = Math.round(moodNorm * 5);
+      rimColor = cw.glow;
+    }
+    const sprite = this.getStarSprite(spriteKey, rimColor);
 
-    // Draw hold tails first (behind heads).
+    // Draw hold tails first (behind heads) — bold, obvious "ribbon" with a bright border.
     for (const n of this.notes) {
       if (!n.isHold || n.holdBroken) continue;
       const headDelta = n.timeMs - tapMs;
@@ -607,23 +712,36 @@ export class GameEngine {
       const yHead = this.yFor(pHead);
       const yTail = this.yFor(pTail);
       const xHead = this.laneCenterX(n.lane, Math.max(0, Math.min(1, pHead)));
-      const wBar = this.laneWidthAt(Math.max(0.1, pHead)) * 0.24;
+      const wBar = this.laneWidthAt(Math.max(0.1, pHead)) * 0.46; // much wider than before
       const active = n.holdActive;
-      const grad = ctx.createLinearGradient(0, yTail, 0, yHead);
-      grad.addColorStop(0, rgbCss(cw.glow, active ? 0.65 : 0.28));
-      grad.addColorStop(1, rgbCss(cw.note, active ? 0.9 : 0.5));
-      ctx.fillStyle = grad;
-      ctx.beginPath();
       const top = Math.min(yHead, yTail);
       const bot = Math.max(yHead, yTail);
       const r = wBar / 2;
-      ctx.roundRect(xHead - r, top, wBar, Math.max(2, bot - top), r);
+      const pulse = active ? 0.75 + 0.25 * Math.sin(songMs / 90) : 1;
+
+      // filled ribbon
+      const grad = ctx.createLinearGradient(0, top, 0, bot);
+      grad.addColorStop(0, rgbCss(rimColor, (active ? 0.85 : 0.5) * pulse));
+      grad.addColorStop(1, rgbCss(cw.note, active ? 0.95 : 0.62));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(xHead - r, top, wBar, Math.max(3, bot - top), r);
       ctx.fill();
-      if (active) {
-        ctx.strokeStyle = rgbCss([255, 255, 255], 0.5);
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
+      // bright border so it reads clearly as a HOLD
+      ctx.strokeStyle = rgbCss(lightenRGB(rimColor, active ? 0.7 : 0.4), active ? 0.95 : 0.7);
+      ctx.lineWidth = active ? 5 : 3.5;
+      ctx.stroke();
+      // dashed center line down the ribbon for a "rail" feel
+      ctx.save();
+      ctx.setLineDash([10, 10]);
+      ctx.lineDashOffset = -(songMs / 12) % 20;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (active ? 0.7 : 0.35) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xHead, top + r);
+      ctx.lineTo(xHead, bot - r);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Draw heads (glowing negative-black stars via cached sprite).

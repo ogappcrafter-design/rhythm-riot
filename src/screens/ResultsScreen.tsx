@@ -32,9 +32,12 @@ export function ResultsScreen({
   const t = result.totals;
 
   useEffect(() => {
-    sfx.play(result.grade === 'S' || result.grade === 'A' ? 'record' : 'uiTap');
+    sfx.play('fanfare');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const clearedLine =
+    result.grade === 'S' ? 'FLAWLESS!' : result.grade === 'A' ? 'AWESOME!' : result.grade === 'D' ? 'CLEARED' : 'GREAT JOB!';
 
   const rows: { label: string; value: number; color: string }[] = [
     { label: 'PERFECT', value: t.perfect, color: 'var(--perfect)' },
@@ -45,8 +48,23 @@ export function ResultsScreen({
 
   return (
     <div className="screen results">
-      <div style={{ height: 48, marginBottom: 4 }}>
-        <WordArt text="RESULTS" size={34} colors={accent} />
+      {/* celebratory burst */}
+      <div className="confetti" aria-hidden>
+        {Array.from({ length: 28 }).map((_, i) => (
+          <span key={i} style={{ ['--i' as string]: i, left: `${(i * 37 + 6) % 100}%` }} />
+        ))}
+      </div>
+      <div className="results-celebrate">
+        <div style={{ height: 56 }}>
+          <WordArt text="SONG COMPLETE" size={40} colors={accent} />
+        </div>
+        <div style={{ height: 40, marginTop: -6 }}>
+          <WordArt
+            text={clearedLine}
+            size={30}
+            colors={result.grade === 'S' || result.grade === 'A' ? ['#fff', '#ffd76a', '#ff8a3c'] : ['#fff', '#8ef0ff', '#22d3ee']}
+          />
+        </div>
       </div>
       <div className="subtle center" style={{ marginBottom: 12 }}>
         {track.title} · {DIFF_NAME[result.difficulty]}

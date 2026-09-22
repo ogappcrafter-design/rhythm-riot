@@ -22,6 +22,9 @@ export interface WordArtProps {
   align?: 'start' | 'middle' | 'end';
   className?: string;
   glow?: boolean;
+  /** Fit within BOTH the wrapper's width and height (wrapper must have a definite height).
+   *  Prevents short titles from scaling taller than their box and overlapping siblings. */
+  fitHeight?: boolean;
 }
 
 export function WordArt({
@@ -33,6 +36,7 @@ export function WordArt({
   align = 'middle',
   className,
   glow = true,
+  fitHeight = false,
 }: WordArtProps) {
   const id = useId().replace(/:/g, '');
   const gid = `wa-grad-${id}`;
@@ -50,7 +54,8 @@ export function WordArt({
       className={className}
       viewBox={`0 0 ${approxWidth} ${height}`}
       width="100%"
-      preserveAspectRatio="xMidYMid meet"
+      height={fitHeight ? '100%' : undefined}
+      preserveAspectRatio={fitHeight ? 'xMidYMid meet' : 'xMidYMid meet'}
       role="img"
       aria-label={text}
       style={{ display: 'block', overflow: 'visible' }}

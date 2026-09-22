@@ -17,7 +17,11 @@ type SfxName =
   | 'countdown'
   | 'countdownGo'
   | 'unlock'
-  | 'record';
+  | 'record'
+  | 'combo100'
+  | 'combo200'
+  | 'rally'
+  | 'fanfare';
 
 class SfxEngine {
   private ctx: AudioContext | null = null;
@@ -130,6 +134,31 @@ class SfxEngine {
         [784, 988, 1319].forEach((f, i) =>
           setTimeout(() => this.tone(f, 0.16, 'sine', 0.3), i * 80),
         );
+        break;
+      case 'combo100':
+        // quick bright rising triad — "you're on fire"
+        [659, 880, 1109].forEach((f, i) =>
+          setTimeout(() => this.tone(f, 0.12, 'triangle', 0.22), i * 55),
+        );
+        break;
+      case 'combo200':
+        // brighter shimmer sweep for the rainbow tier
+        [880, 1109, 1319, 1760].forEach((f, i) =>
+          setTimeout(() => this.tone(f, 0.14, 'triangle', 0.22), i * 55),
+        );
+        break;
+      case 'rally':
+        // warm two-note "keep going" nudge when a big streak drops (kept low so it
+        // never fights the music)
+        this.tone(392, 0.16, 'sine', 0.16, 523);
+        setTimeout(() => this.tone(523, 0.18, 'sine', 0.16), 140);
+        break;
+      case 'fanfare':
+        // celebratory results-screen sting
+        [523, 659, 784, 1047, 1319].forEach((f, i) =>
+          setTimeout(() => this.tone(f, 0.22, 'triangle', 0.32), i * 110),
+        );
+        setTimeout(() => this.tone(1568, 0.5, 'sine', 0.28), 560);
         break;
     }
   }

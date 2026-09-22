@@ -68,12 +68,12 @@ export function SongSelect() {
             >
               <div className="row" style={{ alignItems: 'stretch', gap: 14 }}>
                 <TrackArt low={pal.low.bgGlow} high={pal.high.bgGlow} index={i} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ height: 34 }}>
-                    <WordArt text={track.title} size={22} align="start" colors={accent} tilt={-3} />
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <div style={{ height: 30 }}>
+                    <WordArt text={track.title} size={22} align="start" colors={accent} tilt={-3} fitHeight />
                   </div>
-                  <div className="faint" style={{ marginTop: 2 }}>{track.tagline}</div>
-                  <div className="row" style={{ gap: 8, marginTop: 6 }}>
+                  <div className="faint" style={{ marginTop: 6 }}>{track.tagline}</div>
+                  <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                     <span className="pill">{Math.round(track.bpm)} BPM</span>
                     <span className="pill">
                       {Math.floor(track.durationSec / 60)}:
