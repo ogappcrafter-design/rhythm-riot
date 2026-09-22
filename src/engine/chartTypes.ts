@@ -18,6 +18,12 @@ export interface ChartNote {
   type: NoteType;
   /** Duration for hold notes; absent/0 for taps. Reserved for v2. */
   holdMs?: number;
+  /**
+   * Beat-subdivision color class (DDR-style arrow coloring), computed at build time from the
+   * real beat grid: 0 = red (on-beat / 4th), 1 = blue (8th / off-beat), 2 = yellow (16th),
+   * 3 = green (triplet). Absent is treated as 0.
+   */
+  c?: number;
 }
 
 export interface HitWindowMs {

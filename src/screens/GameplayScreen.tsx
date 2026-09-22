@@ -70,15 +70,18 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     };
   }, [trackId, difficulty, track.audioFile]);
 
-  // ---- "Are you ready?" → countdown → start ----
+  // ---- "Are you ready?" → deliberate pause → countdown → start ----
   useEffect(() => {
     if (phase !== 'countdown') return;
     let cancelled = false;
+    let started = false; // guards against the TTS callback and the safety timer both firing
     let iv: number | undefined;
+    const timers: number[] = [];
     setCount(-1); // -1 = the pre-song "ARE YOU READY?" moment (voice plays, no number yet)
 
     const runCountdown = () => {
-      if (cancelled) return;
+      if (cancelled || started) return;
+      started = true;
       setCount(3);
       let n = 3;
       sfx.play('countdown');
@@ -96,12 +99,20 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       }, 750);
     };
 
-    // Speak the DDR-style cue FIRST; the 3-2-1 (and the music) only begin once it finishes.
-    speakThen('Are you ready?', settings.sfxVolume, runCountdown);
+    // Make sure the audio path is unlocked, then speak the DDR cue. We hold on the
+    // "ARE YOU READY?" moment for a deliberate beat (a real pause) BEFORE the 3-2-1 begins,
+    // whether or not the device's TTS actually spoke — so the moment always lands.
+    sfx.unlock();
+    speakThen('Are you ready?', Math.max(0.9, settings.sfxVolume), () => {
+      timers.push(window.setTimeout(runCountdown, 700)); // the pause after the voice
+    });
+    // Hard safety: if the TTS callback never fires (some WebViews), start the countdown anyway.
+    timers.push(window.setTimeout(runCountdown, 2600));
 
     return () => {
       cancelled = true;
       if (iv) clearInterval(iv);
+      timers.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);

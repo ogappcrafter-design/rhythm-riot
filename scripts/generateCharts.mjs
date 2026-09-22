@@ -234,9 +234,61 @@ function markHolds(trackId, diff, notes, analysis) {
   }
 }
 
-// Strip internal fields and emit the committed note shape.
-function finalizeNotes(notes) {
-  return notes.map((n) => (n.type === 'hold' ? { timeMs: n.timeMs, lane: n.lane, type: 'hold', holdMs: n.holdMs } : { timeMs: n.timeMs, lane: n.lane, type: 'tap' }));
+// DDR-style beat-subdivision color of a note, from the REAL beat grid. Returns:
+//   0 = red    (on-beat / quarter)     2 = yellow (16th)
+//   1 = blue   (8th / off-beat)        3 = green  (triplet / 12th)
+// Notes that don't snap cleanly default to blue (an off-beat), which keeps the field colorful
+// without lying about strong downbeats.
+function classifyColor(tMs, beatsMs) {
+  if (!beatsMs || beatsMs.length < 2) return 0;
+  let i = 0;
+  while (i < beatsMs.length - 1 && beatsMs[i + 1] <= tMs) i++;
+  let b0 = beatsMs[i];
+  let b1 = beatsMs[i + 1] ?? b0 + (b0 - (beatsMs[i - 1] ?? b0 - 500));
+  if (tMs < beatsMs[0]) {
+    b1 = beatsMs[0];
+    b0 = beatsMs[0] - (beatsMs[1] - beatsMs[0]);
+  }
+  const span = b1 - b0 || 500;
+  let frac = (tMs - b0) / span;
+  frac -= Math.floor(frac); // 0..1 within the beat
+  const near = (x, tol) => Math.min(Math.abs(frac - x), Math.abs(frac - x + 1), Math.abs(frac - x - 1)) <= tol;
+  const tol = 0.1;
+  if (near(0, tol)) return 0; // downbeat → red
+  if (near(0.5, tol)) return 1; // & → blue
+  if (near(1 / 3, tol) || near(2 / 3, tol)) return 3; // triplet → green
+  if (near(0.25, tol) || near(0.75, tol)) return 2; // 16th → yellow
+  return 1;
+}
+
+// Keep the grid CLEAR while a sustain is held: drop every other note (any lane) whose time falls
+// inside a hold's span. Holding one arrow while tapping others is the classic DDR difficulty spike
+// and also causes arrows to visually collide with the freeze body — this removes both. Hold heads
+// (and other holds) are always kept; only taps landing during a sustain are pruned.
+function clearHoldOverlaps(notes) {
+  const holds = notes.filter((n) => n.type === 'hold');
+  if (!holds.length) return notes;
+  const HEAD_GUARD = 30; // don't nuke a note sitting essentially on the hold's own onset frame
+  const TAIL_GUARD = 90; // let a note land right as the sustain releases
+  return notes.filter((n) => {
+    if (n.type === 'hold') return true;
+    for (const h of holds) {
+      const start = h.timeMs;
+      const end = h.timeMs + (h.holdMs || 0);
+      if (n.timeMs >= start - HEAD_GUARD && n.timeMs <= end - TAIL_GUARD) return false;
+    }
+    return true;
+  });
+}
+
+// Strip internal fields and emit the committed note shape (with DDR color class `c`).
+function finalizeNotes(notes, beatsMs) {
+  return notes.map((n) => {
+    const c = classifyColor(n.timeMs, beatsMs);
+    return n.type === 'hold'
+      ? { timeMs: n.timeMs, lane: n.lane, type: 'hold', holdMs: n.holdMs, c }
+      : { timeMs: n.timeMs, lane: n.lane, type: 'tap', c };
+  });
 }
 
 function buildDifficulty(trackId, diff, analysis) {
@@ -247,7 +299,7 @@ function buildDifficulty(trackId, diff, analysis) {
   const picked = selectNotes(candidates, target, cfg.minSpacingMs);
   const notes = assignLanes(trackId, diff, picked, cfg.laneCount);
   markHolds(trackId, diff, notes, analysis);
-  return finalizeNotes(notes);
+  return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 
 // Expert: Hard's real-onset set (5-lane) + energy-driven flourishes on the hottest hits.
@@ -278,7 +330,7 @@ function buildExpert(trackId, analysis) {
   const all = [...base, ...extras].sort((a, b) => a.tMs - b.tMs);
   const notes = assignLanes(trackId, 'expert', all, cfg.laneCount);
   markHolds(trackId, 'expert', notes, analysis);
-  return finalizeNotes(notes);
+  return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 
 function buildMoodCurve(env, durationMs) {
