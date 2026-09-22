@@ -16,7 +16,7 @@ import {
 import { MoodSystem } from './moodSystem';
 import { ParticleField } from './particles';
 import { sampleMoodCurve } from './chartLoader';
-import { sfx } from '../audio/sfx';
+import { sfx, speak } from '../audio/sfx';
 import type { AudioClock } from './audioClock';
 import type { RGB } from '../data/palettes';
 
@@ -51,6 +51,7 @@ export interface EngineOptions {
   latencyOffsetMs: number;
   visualIntensity: number;
   hapticsEnabled: boolean;
+  sfxVolume: number;
   onHud: (s: HudState) => void;
   onFinish: (r: RunResult) => void;
 }
@@ -321,11 +322,12 @@ export class GameEngine {
       this.lastComboTier = 0;
       this.missFlash = 1; // red screen-edge flash
       this.consecutiveMiss += 1;
-      // Encouragement after 5 misses in a row ("keep going / don't give up").
+      // Encouragement after 5 misses in a row ("keep going / don't give up") — spoken + banner.
       if (this.consecutiveMiss % 5 === 0) {
         sfx.play('rally');
         this.encourageText = ENCOURAGE[(this.consecutiveMiss / 5 - 1) % ENCOURAGE.length];
         this.encourageUntil = performance.now() + 1600;
+        speak(this.encourageText, this.opts.sfxVolume);
       }
     } else {
       this.consecutiveMiss = 0;

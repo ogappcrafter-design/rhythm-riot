@@ -109,6 +109,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       latencyOffsetMs: settings.latencyOffsetMs,
       visualIntensity: settings.visualIntensity,
       hapticsEnabled: settings.haptics,
+      sfxVolume: settings.sfxVolume,
       onHud: setHud,
       onFinish: handleFinish,
     });
