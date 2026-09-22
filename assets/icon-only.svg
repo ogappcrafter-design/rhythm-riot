@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3d8b"/>
+      <stop offset="0.5" stop-color="#7c3cff"/>
+      <stop offset="1" stop-color="#12c2e9"/>
+    </linearGradient>
+    <radialGradient id="hi" cx="0.5" cy="0.4" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.55" r="0.78">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+    </radialGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.6" stop-color="#eafcff"/>
+      <stop offset="1" stop-color="#9fe8ff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#22d3ee" flood-opacity="0.9"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="7" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="nglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="14" flood-color="#ffffff" flood-opacity="0.9"/>
+    </filter>
+    <g id="note">
+      <ellipse cx="0" cy="60" rx="34" ry="24" transform="rotate(-20 0 60)" fill="#ffffff"/>
+      <rect x="28" y="-70" width="12" height="132" fill="#ffffff"/>
+      <path d="M40 -70 q54 14 44 78 q-6 -40 -44 -46 Z" fill="#ffffff"/>
+    </g>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g stroke="#ffffff" stroke-opacity="0.10" stroke-width="26">
+    <line x1="512" y1="512" x2="512" y2="-120"/>
+    <line x1="512" y1="512" x2="1140" y2="200"/>
+    <line x1="512" y1="512" x2="1200" y2="820"/>
+    <line x1="512" y1="512" x2="600" y2="1200"/>
+    <line x1="512" y1="512" x2="-160" y2="900"/>
+    <line x1="512" y1="512" x2="-120" y2="260"/>
+  </g>
+  <rect width="1024" height="1024" fill="url(#hi)"/>
+  <rect width="1024" height="1024" fill="url(#vig)"/>
+
+  <g filter="url(#nglow)">
+    <use href="#note" transform="translate(210 210) scale(1.25) rotate(-10)"/>
+    <use href="#note" transform="translate(790 700) scale(1.45) rotate(12)"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <text x="512" y="606" text-anchor="middle"
+      font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic"
+      font-size="248" letter-spacing="-10"
+      fill="url(#txt)" stroke="#1a0b3a" stroke-width="14" paint-order="stroke">RIOT!</text>
+  </g>
+</svg>

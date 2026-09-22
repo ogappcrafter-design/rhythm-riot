@@ -1,51 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
   <defs>
-    <radialGradient id="bg" cx="0.32" cy="0.4" r="0.9">
-      <stop offset="0" stop-color="#1b1745"/>
-      <stop offset="0.55" stop-color="#0a0c1e"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141033"/>
+      <stop offset="0.5" stop-color="#0a0c1e"/>
       <stop offset="1" stop-color="#05060f"/>
+    </linearGradient>
+    <radialGradient id="vp" cx="0.5" cy="0.0" r="0.8">
+      <stop offset="0" stop-color="#7c5cff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7c5cff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.55" stop-color="#b9a3ff"/>
-      <stop offset="1" stop-color="#7c5cff"/>
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#b9a3ff"/><stop offset="1" stop-color="#7c5cff"/>
     </linearGradient>
     <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.5" stop-color="#8ef0ff"/>
-      <stop offset="1" stop-color="#22d3ee"/>
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#8ef0ff"/><stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
-    <linearGradient id="shard" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8ef0ff"/>
-      <stop offset="0.5" stop-color="#7c5cff"/>
-      <stop offset="1" stop-color="#22d3ee"/>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ef0ff"/><stop offset="1" stop-color="#7c5cff"/>
     </linearGradient>
-    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="10" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="tglow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#22d3ee" flood-opacity="0.85"/>
     </filter>
+    <filter id="sglow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#8ef0ff" flood-opacity="0.9"/>
+    </filter>
+    <!-- negative-black star gem with glowing rim (the in-game note) -->
+    <g id="star">
+      <path d="M0 -30 8.8 -9 31 -6 14 8 18 30 0 18 -18 30 -14 8 -31 -6 -8.8 -9Z"
+        fill="#0a0c18" stroke="url(#rim)" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="-8" cy="-10" r="4" fill="#ffffff" opacity="0.8"/>
+    </g>
   </defs>
+
   <rect width="1024" height="500" fill="url(#bg)"/>
-  <!-- lane hint -->
-  <g opacity="0.15" stroke="#ffffff" stroke-width="2">
-    <line x1="720" y1="60" x2="640" y2="470"/>
-    <line x1="800" y1="60" x2="800" y2="470"/>
-    <line x1="880" y1="60" x2="960" y2="470"/>
+  <rect width="1024" height="500" fill="url(#vp)"/>
+
+  <!-- Converging note highway (behind everything) -->
+  <g opacity="0.5">
+    <g stroke="#ffffff" stroke-width="2">
+      <line x1="512" y1="20" x2="70" y2="500" stroke-opacity="0.45"/>
+      <line x1="512" y1="20" x2="300" y2="500" stroke-opacity="0.5"/>
+      <line x1="512" y1="20" x2="512" y2="500" stroke-opacity="0.55"/>
+      <line x1="512" y1="20" x2="724" y2="500" stroke-opacity="0.5"/>
+      <line x1="512" y1="20" x2="954" y2="500" stroke-opacity="0.45"/>
+    </g>
+    <!-- hit rings at the base of each lane -->
+    <g fill="none" stroke="#8ef0ff" stroke-width="4" filter="url(#sglow)" opacity="0.9">
+      <circle cx="120" cy="468" r="30"/>
+      <circle cx="316" cy="468" r="30"/>
+      <circle cx="512" cy="468" r="30"/>
+      <circle cx="708" cy="468" r="30"/>
+      <circle cx="904" cy="468" r="30"/>
+    </g>
+    <!-- falling star-notes down the lanes (smaller far, bigger near) -->
+    <g filter="url(#sglow)">
+      <use href="#star" transform="translate(470 120) scale(0.5)"/>
+      <use href="#star" transform="translate(430 210) scale(0.7)"/>
+      <use href="#star" transform="translate(360 320) scale(0.95)"/>
+      <use href="#star" transform="translate(690 170) scale(0.6)"/>
+      <use href="#star" transform="translate(760 300) scale(0.9)"/>
+      <use href="#star" transform="translate(880 400) scale(1.1)"/>
+      <use href="#star" transform="translate(210 400) scale(1.1)"/>
+      <use href="#star" transform="translate(540 260) scale(0.8)"/>
+    </g>
   </g>
-  <!-- stars falling -->
-  <g fill="url(#shard)" filter="url(#glow)">
-    <path d="M760 150 l7 18 19 2 -14 13 4 19 -16 -10 -16 10 4 -19 -14 -13 19 -2 z"/>
-    <path d="M840 250 l6 14 16 2 -12 11 3 16 -13 -8 -13 8 3 -16 -12 -11 16 -2 z"/>
-    <path d="M690 320 l5 12 14 1 -11 10 3 14 -11 -7 -11 7 3 -14 -11 -10 14 -1 z"/>
+
+  <!-- Title (in front) -->
+  <g font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" filter="url(#tglow)">
+    <text x="512" y="228" text-anchor="middle" font-size="96" fill="url(#g1)" stroke="#0a0820" stroke-width="4" paint-order="stroke">RHYTHM</text>
+    <text x="512" y="342" text-anchor="middle" font-size="128" fill="url(#g2)" stroke="#0a0820" stroke-width="4" paint-order="stroke">RIOT</text>
   </g>
-  <!-- glowing shard mark -->
-  <g filter="url(#glow)" transform="translate(120 250) scale(9)">
-    <path d="M0 -12 3.4 -3 12 -2 5 3 7 12 0 6.6 -7 12 -5 3 -12 -2 -3.4 -3Z" fill="url(#shard)"/>
-  </g>
-  <!-- wordmark -->
-  <g font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" filter="url(#glow)">
-    <text x="250" y="235" font-size="96" fill="url(#g1)" stroke="#0a0820" stroke-width="3" paint-order="stroke">RHYTHM</text>
-    <text x="250" y="330" font-size="120" fill="url(#g2)" stroke="#0a0820" stroke-width="3" paint-order="stroke">RIOT</text>
-  </g>
-  <text x="252" y="382" font-family="Arial, sans-serif" font-weight="700" font-size="26" letter-spacing="6" fill="#a6a9cf">TAP · HOLD · RIDE THE MOOD</text>
+  <text x="512" y="392" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="24" letter-spacing="7" fill="#c9c6ef">TAP · HOLD · RIDE THE MOOD</text>
 </svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="txt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.6" stop-color="#eafcff"/>
+      <stop offset="1" stop-color="#9fe8ff"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#22d3ee" flood-opacity="0.9"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="6" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="nglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#ffffff" flood-opacity="0.9"/>
+    </filter>
+    <!-- eighth note -->
+    <g id="note">
+      <ellipse cx="0" cy="60" rx="34" ry="24" transform="rotate(-20 0 60)" fill="#ffffff"/>
+      <rect x="28" y="-70" width="12" height="132" fill="#ffffff"/>
+      <path d="M40 -70 q54 14 44 78 q-6 -40 -44 -46 Z" fill="#ffffff"/>
+    </g>
+  </defs>
+
+  <!-- content kept within the center safe zone (~62%) for adaptive masking -->
+  <g filter="url(#nglow)" opacity="0.95">
+    <use href="#note" transform="translate(300 250) scale(1.15) rotate(-8)"/>
+    <use href="#note" transform="translate(720 640) scale(1.3) rotate(10)"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <text x="512" y="600" text-anchor="middle"
+      font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic"
+      font-size="200" letter-spacing="-8"
+      fill="url(#txt)" stroke="#1a0b3a" stroke-width="12" paint-order="stroke">RIOT!</text>
+  </g>
+</svg>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3d8b"/>
+      <stop offset="0.5" stop-color="#7c3cff"/>
+      <stop offset="1" stop-color="#12c2e9"/>
+    </linearGradient>
+    <radialGradient id="hi" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.55" r="0.75">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- radiating energy burst -->
+  <g stroke="#ffffff" stroke-opacity="0.10" stroke-width="26">
+    <line x1="512" y1="512" x2="512" y2="-120"/>
+    <line x1="512" y1="512" x2="1140" y2="200"/>
+    <line x1="512" y1="512" x2="1200" y2="820"/>
+    <line x1="512" y1="512" x2="600" y2="1200"/>
+    <line x1="512" y1="512" x2="-160" y2="900"/>
+    <line x1="512" y1="512" x2="-120" y2="260"/>
+  </g>
+  <rect width="1024" height="1024" fill="url(#hi)"/>
+  <rect width="1024" height="1024" fill="url(#vig)"/>
+</svg>
