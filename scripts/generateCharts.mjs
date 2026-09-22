@@ -44,23 +44,20 @@ const HIT_WINDOWS = {
 };
 
 const DIFF_CONFIG = {
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.26 },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.26 },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.24 },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.26 },
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.34 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.34 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.32 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.34 },
 };
 
-// Hold-note tuning (spec 5.4 "hold" type). A note becomes a hold where the SONG ITSELF sustains:
-// we read the RMS energy envelope and only place a hold where energy stays up after the hit
-// (a pad / held note / sustained synth), with the hold's LENGTH matching how long it sustains.
-// The tail always ends a hair before the next note in the SAME lane, so a hold can span other
-// lanes' notes but never doubles up in its own lane.
+// Hold-note tuning (spec 5.4 "hold" type). Holds are now PITCH-BASED: a note becomes a hold only
+// where pYIN found a genuinely held note (a stable-pitch segment — see analyze.py), and the hold
+// LENGTH equals how long that note is actually held. The tail always ends a hair before the next
+// note in the SAME lane, so a hold can span other lanes' notes but never doubles up in its own.
 const HOLD_RELEASE_BUFFER_MS = 120; // tail ends this far before the next same-lane note
 const HOLD_MIN_MS = 320; // shorter than this isn't worth being a hold
-const HOLD_CAP_MS = 3200; // never longer than this
-const SUSTAIN_DROP_FRAC = 0.62; // sustain "ends" when energy falls below this fraction of its attack peak
-const SUSTAIN_FLOOR = 0.16; // ...or below this absolute (normalized) energy
-const ATTACK_STRENGTH = 0.5; // a hold can't extend past the next onset at/above this strength (a new struck note)
+const HOLD_CAP_MS = 3400; // never longer than this
+const HOLD_ATTACK_TOL_MS = 150; // a note counts as a held note if it lands within this of the segment's start
 
 /* ------------------------------ RNG ------------------------------ */
 
@@ -182,43 +179,23 @@ function markHolds(trackId, diff, notes, analysis) {
     lastByLane[lane] = i;
   }
 
-  const env = analysis.energyEnvelope;
-  const onsets = analysis.onsets; // time-sorted, each { tMs, strength, energy }
+  // PITCH-BASED: holds land on actual held notes (stable-pitch segments from pYIN, see
+  // analyze.py), with length = how long that note is held — clamped by same-lane room + cap.
+  const segs = (analysis.sustainSegments || []).slice().sort((a, b) => a.startMs - b.startMs);
 
-  // Time of the next strong ATTACK after t — a held note ends when a new note is struck.
-  const nextAttackAfter = (tMs) => {
-    for (const o of onsets) {
-      if (o.tMs > tMs + 320 && o.strength >= ATTACK_STRENGTH) return o.tMs;
-    }
-    return Infinity;
-  };
-
-  // How long the sound actually SUSTAINS after a note: the hold ends the moment the energy
-  // fades below a fraction of its attack peak (for ~160ms, so a single noisy sample doesn't
-  // cut it early) OR the next strong attack lands — whichever comes first, bounded by `room`.
-  const sustainMsAt = (tMs, room) => {
-    let peak = 0;
-    for (let dt = 0; dt <= 350; dt += 90) peak = Math.max(peak, sampleEnvelope(env, tMs + dt));
-    if (peak < 0.16) return 0; // too quiet to be a real held note
-    const threshold = Math.max(SUSTAIN_DROP_FRAC * peak, SUSTAIN_FLOOR);
-
-    let decayEnd = room;
-    let firstBelow = -1;
-    for (let tt = 200; tt <= room; tt += 70) {
-      if (sampleEnvelope(env, tMs + tt) < threshold) {
-        if (firstBelow < 0) firstBelow = tt;
-        if (tt - firstBelow >= 160) {
-          decayEnd = firstBelow; // the note faded here
-          break;
-        }
-      } else {
-        firstBelow = -1;
+  // Find the held-note segment whose ATTACK lines up with a note (the note is that held note).
+  const segForNote = (tMs) => {
+    let best = null;
+    let bestErr = HOLD_ATTACK_TOL_MS;
+    for (const s of segs) {
+      if (s.startMs > tMs + HOLD_ATTACK_TOL_MS) break;
+      const err = Math.abs(s.startMs - tMs);
+      if (err <= bestErr) {
+        bestErr = err;
+        best = s;
       }
     }
-    // Don't hold across the next struck note.
-    const attack = nextAttackAfter(tMs);
-    const attackBound = attack === Infinity ? room : attack - tMs - 100;
-    return Math.max(0, Math.min(decayEnd, attackBound, room));
+    return best;
   };
 
   const candidates = [];
@@ -227,12 +204,16 @@ function markHolds(trackId, diff, notes, analysis) {
     const nextT = j < 0 ? analysis.durationMs : notes[j].timeMs;
     const room = Math.min(nextT - notes[i].timeMs - HOLD_RELEASE_BUFFER_MS, HOLD_CAP_MS);
     if (room < HOLD_MIN_MS) continue;
-    const sustain = sustainMsAt(notes[i].timeMs, room);
-    if (sustain < HOLD_MIN_MS) continue; // only where the music actually sustains
-    candidates.push({ i, holdMs: sustain });
+    const seg = segForNote(notes[i].timeMs);
+    if (!seg) continue; // no held note here → stays a tap
+    const heldMs = seg.endMs - notes[i].timeMs; // to the end of the held note
+    const holdMs = Math.min(heldMs, room);
+    if (holdMs < HOLD_MIN_MS) continue;
+    candidates.push({ i, holdMs });
   }
-  // Prefer the longest, most-sustained holds; slight seeded jitter to vary placement.
-  candidates.sort((a, b) => b.holdMs - a.holdMs + (rng() - 0.5) * 120);
+  // Chronological placement so every qualifying held note can become a hold; jitter only breaks
+  // ties for the same-lane cooldown, keeping it deterministic.
+  candidates.sort((a, b) => notes[a.i].timeMs - notes[b.i].timeMs + (rng() - 0.5) * 2);
 
   const targetHolds = Math.round(notes.length * cfg.holdFraction);
   const lastHoldTimeByLane = {};
@@ -242,7 +223,7 @@ function markHolds(trackId, diff, notes, analysis) {
     const n = notes[c.i];
     // Don't stack two holds too close in the same lane.
     const lastT = lastHoldTimeByLane[n.lane];
-    if (lastT !== undefined && n.timeMs - lastT < 1200) continue;
+    if (lastT !== undefined && n.timeMs - lastT < 900) continue;
     n.type = 'hold';
     n.holdMs = Math.round(c.holdMs);
     lastHoldTimeByLane[n.lane] = n.timeMs;
