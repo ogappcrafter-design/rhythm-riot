@@ -101,7 +101,7 @@ That's it — song select, loading, difficulty gems and unlock logic all scale a
 
 The native Android project **is committed** (`android/`), pre-configured, and opens straight in
 Android Studio. It's a Capacitor wrapper around the web build in `dist/`. Already set up:
-portrait lock, app name/id (`Rhythm Riot` / `rhythm.riot.babylovebabylove.com`), custom launcher icons +
+portrait lock, app name/id (`Rhythm Riot` / `com.rhythmriot.game`), custom launcher icons +
 splash (all densities, from `assets/icon.svg` / `assets/splash.svg`), and R8 minify on release.
 
 ### Open it in Android Studio

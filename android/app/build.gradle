@@ -4,7 +4,7 @@ android {
     namespace "com.rhythmriot.game"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "rhythm.riot.babylovebabylove.com"
+        applicationId "com.rhythmriot.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3
