@@ -57,9 +57,10 @@ const DIFF_CONFIG = {
 // lanes' notes but never doubles up in its own lane.
 const HOLD_RELEASE_BUFFER_MS = 120; // tail ends this far before the next same-lane note
 const HOLD_MIN_MS = 320; // shorter than this isn't worth being a hold
-const HOLD_CAP_MS = 3400; // never longer than this
-const SUSTAIN_DROP_FRAC = 0.45; // sustain "ends" when energy falls below this fraction of the peak
-const SUSTAIN_FLOOR = 0.12; // ...or below this absolute (normalized) energy
+const HOLD_CAP_MS = 3200; // never longer than this
+const SUSTAIN_DROP_FRAC = 0.62; // sustain "ends" when energy falls below this fraction of its attack peak
+const SUSTAIN_FLOOR = 0.16; // ...or below this absolute (normalized) energy
+const ATTACK_STRENGTH = 0.5; // a hold can't extend past the next onset at/above this strength (a new struck note)
 
 /* ------------------------------ RNG ------------------------------ */
 
@@ -182,18 +183,42 @@ function markHolds(trackId, diff, notes, analysis) {
   }
 
   const env = analysis.energyEnvelope;
+  const onsets = analysis.onsets; // time-sorted, each { tMs, strength, energy }
 
-  // How long the song's energy stays "up" after a note (a sustained note in the mix),
-  // capped by `room` (the space before the next same-lane note).
+  // Time of the next strong ATTACK after t — a held note ends when a new note is struck.
+  const nextAttackAfter = (tMs) => {
+    for (const o of onsets) {
+      if (o.tMs > tMs + 320 && o.strength >= ATTACK_STRENGTH) return o.tMs;
+    }
+    return Infinity;
+  };
+
+  // How long the sound actually SUSTAINS after a note: the hold ends the moment the energy
+  // fades below a fraction of its attack peak (for ~160ms, so a single noisy sample doesn't
+  // cut it early) OR the next strong attack lands — whichever comes first, bounded by `room`.
   const sustainMsAt = (tMs, room) => {
     let peak = 0;
-    for (let dt = 0; dt <= 300; dt += 100) peak = Math.max(peak, sampleEnvelope(env, tMs + dt));
+    for (let dt = 0; dt <= 350; dt += 90) peak = Math.max(peak, sampleEnvelope(env, tMs + dt));
     if (peak < 0.16) return 0; // too quiet to be a real held note
     const threshold = Math.max(SUSTAIN_DROP_FRAC * peak, SUSTAIN_FLOOR);
-    for (let tt = 250; tt <= room; tt += 90) {
-      if (sampleEnvelope(env, tMs + tt) < threshold) return tt;
+
+    let decayEnd = room;
+    let firstBelow = -1;
+    for (let tt = 200; tt <= room; tt += 70) {
+      if (sampleEnvelope(env, tMs + tt) < threshold) {
+        if (firstBelow < 0) firstBelow = tt;
+        if (tt - firstBelow >= 160) {
+          decayEnd = firstBelow; // the note faded here
+          break;
+        }
+      } else {
+        firstBelow = -1;
+      }
     }
-    return room;
+    // Don't hold across the next struck note.
+    const attack = nextAttackAfter(tMs);
+    const attackBound = attack === Infinity ? room : attack - tMs - 100;
+    return Math.max(0, Math.min(decayEnd, attackBound, room));
   };
 
   const candidates = [];
@@ -204,7 +229,7 @@ function markHolds(trackId, diff, notes, analysis) {
     if (room < HOLD_MIN_MS) continue;
     const sustain = sustainMsAt(notes[i].timeMs, room);
     if (sustain < HOLD_MIN_MS) continue; // only where the music actually sustains
-    candidates.push({ i, holdMs: Math.min(sustain, room) });
+    candidates.push({ i, holdMs: sustain });
   }
   // Prefer the longest, most-sustained holds; slight seeded jitter to vary placement.
   candidates.sort((a, b) => b.holdMs - a.holdMs + (rng() - 0.5) * 120);
