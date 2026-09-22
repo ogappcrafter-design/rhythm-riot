@@ -34,6 +34,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     score: 0, combo: 0, accuracy: 0, progress: 0, perfect: 0, great: 0, good: 0, miss: 0,
   });
   const [laneCount, setLaneCount] = useState(4);
+  const [titleIntro, setTitleIntro] = useState(false);
   const laneElsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const keyDownRef = useRef<Set<number>>(new Set());
 
@@ -113,6 +114,9 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     void clock.start().then(() => {
       engine.start();
       setPhase('playing');
+      // Big song-title splash that fades out before the notes reach the hit zone.
+      setTitleIntro(true);
+      window.setTimeout(() => setTitleIntro(false), 2100);
     });
   };
 
@@ -301,6 +305,18 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
         <div className="overlay center countdown">
           <div style={{ height: 120, width: 260 }}>
             <WordArt text="GO!" size={96} colors={['#fff', '#8bff9b', '#22d3ee']} />
+          </div>
+        </div>
+      )}
+
+      {/* Song-title splash — big word-art intro that fades before notes arrive */}
+      {titleIntro && (
+        <div className="song-splash" aria-hidden>
+          <div className="song-splash-inner">
+            <div className="song-splash-kicker">NOW PLAYING</div>
+            <div style={{ width: '100%' }}>
+              <WordArt text={track.title} size={48} colors={accent} tilt={-4} />
+            </div>
           </div>
         </div>
       )}

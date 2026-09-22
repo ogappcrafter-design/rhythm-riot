@@ -346,6 +346,37 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.song-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 24vh;
+  pointer-events: none;
+  animation: song-splash 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.song-splash-inner {
+  width: min(560px, 90vw);
+  text-align: center;
+  filter: drop-shadow(0 6px 30px rgba(0, 0, 0, 0.6));
+}
+.song-splash-kicker {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.4em;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 8px;
+  text-shadow: 0 0 12px rgba(124, 92, 255, 0.8);
+}
+@keyframes song-splash {
+  0% { opacity: 0; transform: scale(1.35); }
+  10% { opacity: 1; transform: scale(1); }
+  45% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.94); }
+}
+
 .fallback-banner {
   position: absolute;
   top: calc(58px + var(--safe-top));
