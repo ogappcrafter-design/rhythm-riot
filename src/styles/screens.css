@@ -267,20 +267,33 @@
 }
 .hud-score { min-width: 110px; }
 .hud-score-val {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 900;
+  font-style: italic;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 12px rgba(124, 92, 255, 0.6);
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 14px rgba(124, 92, 255, 0.7), 0 2px 4px rgba(0, 0, 0, 0.5);
 }
-.hud-acc { font-size: 12px; color: var(--ink-dim); }
+.hud-acc {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  letter-spacing: 0.4px;
+}
 .hud-progress {
   flex: 1;
-  height: 8px;
+  height: 9px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
-.hud-progress-fill { height: 100%; border-radius: 8px; transition: width 0.15s linear; }
+.hud-progress-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 12px rgba(124, 92, 255, 0.7);
+}
 
 .lane-controls {
   position: absolute;
@@ -296,6 +309,7 @@
   min-height: 150px;
 }
 .lane-btn {
+  position: relative;
   border: none;
   border-radius: 16px 16px 20px 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.11));
@@ -303,11 +317,35 @@
   box-shadow: inset 0 0 24px rgba(124, 92, 255, 0.15);
   transition: transform 0.05s ease, box-shadow 0.08s ease, background 0.08s ease;
   touch-action: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
 }
 .lane-btn.active {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(124, 92, 255, 0.35));
   box-shadow: inset 0 0 40px var(--pad, #7c5cff), 0 0 26px var(--pad, #7c5cff);
   transform: translateY(2px) scale(0.985);
+}
+.pad-arrow {
+  width: 42%;
+  max-width: 62px;
+  height: 42%;
+  opacity: 0.5;
+  transition: opacity 0.08s ease, transform 0.06s ease, filter 0.08s ease;
+}
+.pad-arrow path {
+  fill: none;
+  stroke: var(--pad, #7c5cff);
+  stroke-width: 7;
+  stroke-linejoin: round;
+}
+.lane-btn.active .pad-arrow {
+  opacity: 1;
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 10px var(--pad, #7c5cff));
+}
+.lane-btn.active .pad-arrow path {
+  fill: color-mix(in srgb, var(--pad, #7c5cff) 55%, transparent);
 }
 
 /* ========================= OVERLAYS ========================== */
@@ -430,6 +468,16 @@
   align-items: center;
   padding: 16px;
   animation: pop-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* DDR grade "stamp": slams in oversized + tilted, then snaps to rest. */
+.results-grade > :first-child {
+  animation: grade-stamp 0.62s cubic-bezier(0.2, 1.3, 0.35, 1) both;
+}
+@keyframes grade-stamp {
+  0% { transform: scale(2.4) rotate(-14deg); opacity: 0; filter: blur(4px); }
+  55% { transform: scale(0.92) rotate(3deg); opacity: 1; filter: blur(0); }
+  75% { transform: scale(1.06) rotate(-1.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 @keyframes pop-in { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .results-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

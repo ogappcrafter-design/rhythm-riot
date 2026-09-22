@@ -11,6 +11,17 @@ import { rgbCss } from '../engine/colors';
 import { IconPause } from '../components/icons';
 import { WordArt } from '../components/WordArt';
 import { sfx, speakThen } from '../audio/sfx';
+import { laneDir, DIR_DEG, ARROW_PATH } from '../engine/laneVisuals';
+
+/** DDR arrow glyph shown on a pad button (matches the in-game arrow shape + direction). */
+function PadArrow({ laneCount, lane }: { laneCount: number; lane: number }) {
+  const dir = laneDir(laneCount, lane);
+  return (
+    <svg className="pad-arrow" viewBox="-52 -52 104 104" aria-hidden>
+      <path d={ARROW_PATH} transform={`rotate(${DIR_DEG[dir]})`} />
+    </svg>
+  );
+}
 
 type Phase = 'loading' | 'error' | 'countdown' | 'playing' | 'paused';
 
@@ -290,7 +301,9 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
               onPointerCancel={() => releaseLane(i)}
               onLostPointerCapture={() => releaseLane(i)}
               aria-label={`Lane ${i + 1}`}
-            />
+            >
+              <PadArrow laneCount={laneCount} lane={i} />
+            </button>
           ))}
         </div>
       )}

@@ -19,6 +19,7 @@ import { sampleMoodCurve } from './chartLoader';
 import { sfx, speak } from '../audio/sfx';
 import type { AudioClock } from './audioClock';
 import type { RGB } from '../data/palettes';
+import { laneDir, type ArrowDir } from './laneVisuals';
 
 export interface RunResult {
   trackId: string;
@@ -55,8 +56,6 @@ export interface EngineOptions {
   onHud: (s: HudState) => void;
   onFinish: (r: RunResult) => void;
 }
-
-type ArrowDir = 'left' | 'down' | 'up' | 'right' | 'upleft' | 'upright';
 
 interface RuntimeNote {
   timeMs: number;
@@ -117,14 +116,6 @@ const ARROW_COLORS: RGB[] = [
 ];
 const FREEZE_BODY: RGB = [86, 235, 132]; // DDR-green freeze (hold) bodies
 
-// Which arrow direction each lane uses, by lane count (DDR / DDR-Solo panel layouts).
-const DIR_BY_LANES: Record<number, ArrowDir[]> = {
-  1: ['up'],
-  2: ['left', 'right'],
-  3: ['left', 'up', 'right'],
-  4: ['left', 'down', 'up', 'right'],
-  5: ['left', 'upleft', 'up', 'upright', 'right'],
-};
 const DIR_ORDER: ArrowDir[] = ['left', 'down', 'up', 'right', 'upleft', 'upright'];
 const DIR_ROT: Record<ArrowDir, number> = {
   up: 0,
@@ -166,11 +157,6 @@ function lightenRGB(c: RGB, t: number): RGB {
 function darkenRGB(c: RGB, t: number): RGB {
   return [Math.round(c[0] * (1 - t)), Math.round(c[1] * (1 - t)), Math.round(c[2] * (1 - t))];
 }
-function laneDir(laneCount: number, lane: number): ArrowDir {
-  const arr = DIR_BY_LANES[laneCount] ?? DIR_BY_LANES[4];
-  return arr[lane] ?? 'up';
-}
-
 export class GameEngine {
   private opts: EngineOptions;
   private ctx: CanvasRenderingContext2D;
@@ -204,6 +190,7 @@ export class GameEngine {
   private nearEndSince = 0; // perf time position first reached the song end (stall fallback)
   private lastComboTier = 0; // 0 / 50 / 100 — for milestone SFX + effects
   private consecutiveMiss = 0;
+  private comboPop = 0; // per-hit combo-counter kick, decays to 0
   private missFlash = 0; // red screen-edge flash, decays to 0
   private encourageUntil = 0; // perf time the encouragement banner stops
   private encourageText = '';
@@ -398,6 +385,7 @@ export class GameEngine {
       const comboMul = 1 + (Math.min(this.combo, 100) / 100) * 0.5;
       this.score += Math.round(JUDGEMENT_SCORE[j] * comboMul);
       this.hitPop[n.lane] = 1; // step-zone explosion
+      this.comboPop = Math.max(this.comboPop, 1); // combo-counter kick
       // MARVELOUS is a cosmetic top tier for a very tight Perfect.
       const marvelous = j === 'perfect' && err <= this.diffChart.hitWindowMs.perfect * 0.5;
       this.spawnFloater(
@@ -409,9 +397,11 @@ export class GameEngine {
       // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles).
       if (this.combo >= 100 && this.lastComboTier < 100) {
         this.lastComboTier = 100;
+        this.comboPop = 1.8;
         sfx.play('combo200');
       } else if (this.combo >= 50 && this.lastComboTier < 50) {
         this.lastComboTier = 50;
+        this.comboPop = 1.8;
         sfx.play('combo100');
       }
     }
@@ -487,6 +477,7 @@ export class GameEngine {
       this.laneFlash[i] = Math.max(target, this.laneFlash[i] - dt / 190);
       if (this.hitPop[i] > 0) this.hitPop[i] = Math.max(0, this.hitPop[i] - dt / 320);
     }
+    if (this.comboPop > 0) this.comboPop = Math.max(0, this.comboPop - dt / 260);
     if (this.missFlash > 0) this.missFlash = Math.max(0, this.missFlash - dt / 450);
     for (let i = this.floaters.length - 1; i >= 0; i--) {
       const f = this.floaters[i];
@@ -684,6 +675,13 @@ export class GameEngine {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.w, this.h);
 
+    // Beat-synced ambient flash — the whole scene breathes on the tempo (subtle).
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = rgbCss(cw.glow, 0.02 + beatPulse * 0.05 * (0.4 + moodNorm));
+    ctx.fillRect(0, 0, this.w, this.h);
+    ctx.restore();
+
     this.drawFlow(cw.particle, moodNorm);
 
     const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.6 : 0;
@@ -866,6 +864,13 @@ export class GameEngine {
       const pop = this.hitPop[lane];
       const scale = base * (1 + beatPulse * 0.1 + pop * 0.25);
 
+      // Soft persistent halo so the target is always legible (brightens on the beat + on a hit).
+      const halo = ctx.createRadialGradient(x, this.receptorY, 0, x, this.receptorY, this.laneW * 0.5);
+      halo.addColorStop(0, rgbCss(cw.glow, 0.1 + beatPulse * 0.08 + pop * 0.3));
+      halo.addColorStop(1, rgbCss(cw.glow, 0));
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - this.laneW * 0.5, this.receptorY - this.laneW * 0.5, this.laneW, this.laneW);
+
       // Ghost outline (always visible target).
       this.withArrow(x, this.receptorY, scale, dir, (c) => {
         c.strokeStyle = `rgba(255,255,255,${0.35 + moodNorm * 0.2})`;
@@ -902,24 +907,36 @@ export class GameEngine {
   /** DDR-style "GROOVE" dance gauge driven by the mood meter. */
   private drawGauge(cw: ReturnType<typeof moodColorway>, moodNorm: number): void {
     const ctx = this.ctx;
-    const pad = 16;
-    const x = pad;
+    const labelW = 62;
+    const x = 16 + labelW;
     const y = this.gaugeY;
-    const w = this.w - pad * 2;
-    const h = 9;
+    const w = this.w - 16 - x;
+    const h = 10;
+    const danger = moodNorm < 0.3;
+
+    // "GROOVE" label.
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 11px system-ui, sans-serif';
+    ctx.fillStyle = danger ? `rgba(255,90,110,${0.7 + 0.3 * Math.abs(Math.sin(performance.now() / 200))})` : rgbCss(lightenRGB(cw.glow, 0.3), 0.85);
+    ctx.fillText('GROOVE', 16, y + h / 2);
+    ctx.restore();
+
     // Track
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, h / 2);
     ctx.fill();
-    // Fill (green when healthy, shifting warm as it drops — DDR danger zone).
+    // Fill (mood-colored when healthy, hot + pulsing in the danger zone).
     const fillW = Math.max(0, Math.min(1, moodNorm)) * w;
     if (fillW > 2) {
-      const danger = moodNorm < 0.3;
+      ctx.save();
       const g = ctx.createLinearGradient(x, 0, x + w, 0);
       if (danger) {
         g.addColorStop(0, '#ff5566');
         g.addColorStop(1, '#ffb144');
+        ctx.globalAlpha = 0.7 + 0.3 * Math.abs(Math.sin(performance.now() / 160));
       } else {
         g.addColorStop(0, rgbCss(cw.glow));
         g.addColorStop(1, rgbCss(lightenRGB(cw.note, 0.2)));
@@ -928,12 +945,19 @@ export class GameEngine {
       ctx.beginPath();
       ctx.roundRect(x, y, fillW, h, h / 2);
       ctx.fill();
+      // Bright leading edge.
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.roundRect(x + fillW - 3, y, 3, h, 1.5);
+      ctx.fill();
+      ctx.restore();
     }
     // Segment ticks.
     ctx.strokeStyle = 'rgba(4,5,14,0.5)';
     ctx.lineWidth = 1.5;
-    for (let i = 1; i < 16; i++) {
-      const tx = x + (w / 16) * i;
+    for (let i = 1; i < 12; i++) {
+      const tx = x + (w / 12) * i;
       ctx.beginPath();
       ctx.moveTo(tx, y);
       ctx.lineTo(tx, y + h);
@@ -945,20 +969,31 @@ export class GameEngine {
   private drawCombo(moodNorm: number, glow: RGB): void {
     if (this.combo < 2) return;
     const ctx = this.ctx;
-    const scale = 1 + (Math.min(this.combo, 100) / 100) * 0.55 + moodNorm * 0.2;
-    const size = 46 * scale;
+    const scale = (1 + (Math.min(this.combo, 100) / 100) * 0.5 + moodNorm * 0.18) * (1 + this.comboPop * 0.12);
+    const size = 48 * scale;
+    const cx = this.w / 2;
     const cy = this.h * 0.44;
+    const tier = this.combo >= 100 ? RAINBOW[Math.floor(performance.now() / 110) % RAINBOW.length] : glow;
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    // Soft colored glow behind the number.
     ctx.font = `900 italic ${size}px system-ui, sans-serif`;
-    ctx.fillStyle = rgbCss(glow, 0.3);
-    ctx.fillText(`${this.combo}`, this.w / 2 + 2, cy + 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.97)';
-    ctx.fillText(`${this.combo}`, this.w / 2, cy);
-    ctx.font = `800 ${size * 0.28}px system-ui, sans-serif`;
-    ctx.fillStyle = rgbCss(glow, 0.95);
-    ctx.fillText('COMBO', this.w / 2, cy + size * 0.58);
+    ctx.fillStyle = rgbCss(tier, 0.32);
+    ctx.fillText(`${this.combo}`, cx, cy + 2);
+    // Dark outline for readability against bright arrows, then a bright white face.
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.09;
+    ctx.strokeStyle = 'rgba(4,5,14,0.65)';
+    ctx.strokeText(`${this.combo}`, cx, cy);
+    ctx.fillStyle = 'rgba(255,255,255,0.98)';
+    ctx.fillText(`${this.combo}`, cx, cy);
+    // "COMBO" label.
+    ctx.font = `800 ${size * 0.26}px system-ui, sans-serif`;
+    ctx.lineWidth = size * 0.05;
+    ctx.strokeText('COMBO', cx, cy + size * 0.56);
+    ctx.fillStyle = rgbCss(lightenRGB(tier, 0.2), 0.97);
+    ctx.fillText('COMBO', cx, cy + size * 0.56);
     ctx.restore();
   }
 
@@ -970,13 +1005,16 @@ export class GameEngine {
     for (const f of this.floaters) {
       const a = Math.max(0, Math.min(1, f.life * 1.6));
       ctx.globalAlpha = a;
-      const pop = 1 + (1 - f.life) * (f.big ? 0.35 : 0.2);
+      // Punch-in: the label slams big at spawn, then settles within the first ~18% of its life.
+      const age = 1 - f.life;
+      const punch = age < 0.18 ? 1 + ((0.18 - age) / 0.18) * (f.big ? 0.4 : 0.28) : 1;
       const isMiss = f.text === 'MISS';
-      const size = (f.big ? 30 : 22) * pop + (isMiss ? Math.sin(f.life * 40) * (1 - f.life) * 4 : 0);
+      const size = (f.big ? 30 : 22) * punch + (isMiss ? Math.sin(f.life * 40) * (1 - f.life) * 4 : 0);
       const shake = isMiss ? Math.sin(f.life * 40) * (1 - f.life) * 5 : 0;
       ctx.font = `900 italic ${size}px system-ui, sans-serif`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = size * 0.16;
+      ctx.strokeStyle = 'rgba(4,5,14,0.6)';
       ctx.strokeText(f.text, f.x + shake, f.y);
       ctx.fillStyle = f.color;
       ctx.fillText(f.text, f.x + shake, f.y);
