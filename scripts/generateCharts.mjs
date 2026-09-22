@@ -44,10 +44,13 @@ const HIT_WINDOWS = {
 };
 
 const DIFF_CONFIG = {
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.34 },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.34 },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.32 },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.34 },
+  // holdFraction is a CEILING on how many taps become holds. It ramps up with difficulty so
+  // holds read as skill-gated accents (beginners get the fewest); naturally-sparse tracks stay
+  // below the ceiling on their own.
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.10 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.11 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.12 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.13 },
 };
 
 // Hold-note tuning (spec 5.4 "hold" type). Holds are now PITCH-BASED: a note becomes a hold only
