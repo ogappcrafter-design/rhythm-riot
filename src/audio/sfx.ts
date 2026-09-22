@@ -185,3 +185,36 @@ export function speak(text: string, volume = 1): void {
     /* TTS unavailable — no-op */
   }
 }
+
+/**
+ * Speak a line and call `done` once it FINISHES (used for the pre-song "Are you ready?" so the
+ * countdown/music only start after the voice ends — never overlapping). Falls back to a short
+ * delay when TTS is unavailable or its end event never fires.
+ */
+export function speakThen(text: string, volume: number, done: () => void): void {
+  let called = false;
+  const finish = () => {
+    if (called) return;
+    called = true;
+    done();
+  };
+  try {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+    if (!synth || volume <= 0) {
+      setTimeout(finish, 250);
+      return;
+    }
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    u.pitch = 1.15;
+    u.volume = Math.max(0, Math.min(1, volume));
+    u.onend = finish;
+    u.onerror = finish;
+    synth.speak(u);
+    // Safety net: some WebViews don't fire onend reliably.
+    setTimeout(finish, 2600);
+  } catch {
+    setTimeout(finish, 250);
+  }
+}

@@ -10,7 +10,7 @@ import { recordRun, type BestRecord } from '../state/storage';
 import { rgbCss } from '../engine/colors';
 import { IconPause } from '../components/icons';
 import { WordArt } from '../components/WordArt';
-import { sfx, speak } from '../audio/sfx';
+import { sfx, speakThen } from '../audio/sfx';
 
 type Phase = 'loading' | 'error' | 'countdown' | 'playing' | 'paused';
 
@@ -27,7 +27,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
   const chartRef = useRef<TrackChart | null>(null);
 
   const [phase, setPhase] = useState<Phase>('loading');
-  const [count, setCount] = useState(3);
+  const [count, setCount] = useState(-1);
   const [fallback, setFallback] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hud, setHud] = useState<HudState>({
@@ -70,27 +70,39 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     };
   }, [trackId, difficulty, track.audioFile]);
 
-  // ---- countdown → start ----
+  // ---- "Are you ready?" → countdown → start ----
   useEffect(() => {
     if (phase !== 'countdown') return;
-    // DDR-style spoken cue, timed to land during the 3-2-1 so it finishes before the music.
-    speak('Are you ready?', settings.sfxVolume);
-    setCount(3);
-    let n = 3;
-    sfx.play('countdown');
-    const iv = setInterval(() => {
-      n -= 1;
-      if (n > 0) {
-        setCount(n);
-        sfx.play('countdown');
-      } else {
-        clearInterval(iv);
-        setCount(0);
-        sfx.play('countdownGo');
-        startEngine();
-      }
-    }, 750);
-    return () => clearInterval(iv);
+    let cancelled = false;
+    let iv: number | undefined;
+    setCount(-1); // -1 = the pre-song "ARE YOU READY?" moment (voice plays, no number yet)
+
+    const runCountdown = () => {
+      if (cancelled) return;
+      setCount(3);
+      let n = 3;
+      sfx.play('countdown');
+      iv = window.setInterval(() => {
+        n -= 1;
+        if (n > 0) {
+          setCount(n);
+          sfx.play('countdown');
+        } else {
+          if (iv) clearInterval(iv);
+          setCount(0);
+          sfx.play('countdownGo');
+          startEngine();
+        }
+      }, 750);
+    };
+
+    // Speak the DDR-style cue FIRST; the 3-2-1 (and the music) only begin once it finishes.
+    speakThen('Are you ready?', settings.sfxVolume, runCountdown);
+
+    return () => {
+      cancelled = true;
+      if (iv) clearInterval(iv);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -293,6 +305,15 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
           <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={doQuit}>
             Back to Songs
           </button>
+        </div>
+      )}
+
+      {/* "Are you ready?" pre-song moment (voice plays here, before the 3-2-1) */}
+      {phase === 'countdown' && count === -1 && (
+        <div className="overlay center countdown">
+          <div style={{ height: 90, width: 'min(520px, 88vw)' }}>
+            <WordArt text="ARE YOU READY?" size={40} colors={accent} tilt={-3} />
+          </div>
         </div>
       )}
 
