@@ -10,7 +10,7 @@ import { recordRun, type BestRecord } from '../state/storage';
 import { rgbCss } from '../engine/colors';
 import { IconPause } from '../components/icons';
 import { WordArt } from '../components/WordArt';
-import { sfx } from '../audio/sfx';
+import { sfx, speak } from '../audio/sfx';
 
 type Phase = 'loading' | 'error' | 'countdown' | 'playing' | 'paused';
 
@@ -73,6 +73,8 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
   // ---- countdown → start ----
   useEffect(() => {
     if (phase !== 'countdown') return;
+    // DDR-style spoken cue, timed to land during the 3-2-1 so it finishes before the music.
+    speak('Are you ready?', settings.sfxVolume);
     setCount(3);
     let n = 3;
     sfx.play('countdown');

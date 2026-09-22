@@ -165,3 +165,23 @@ class SfxEngine {
 }
 
 export const sfx = new SfxEngine();
+
+/**
+ * Speak a short line using the device's built-in text-to-speech (Web Speech API) — used for the
+ * DDR-style "Are you ready?" right before a song. No audio asset required; degrades to silence
+ * where TTS isn't available. Kept short so it finishes during the countdown, before the music.
+ */
+export function speak(text: string, volume = 1): void {
+  try {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+    if (!synth || volume <= 0) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    u.pitch = 1.15;
+    u.volume = Math.max(0, Math.min(1, volume));
+    synth.speak(u);
+  } catch {
+    /* TTS unavailable — no-op */
+  }
+}
