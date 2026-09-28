@@ -65,6 +65,15 @@ export const TRACKS: TrackMeta[] = [
     bpm: 152.0,
     durationSec: 214.69,
   },
+  {
+    id: 'badass_underglow',
+    title: 'Badass Underglow',
+    audioFile: 'badass_underglow.mp4',
+    paletteKey: 'badass_underglow',
+    tagline: 'Neon nights · disco pulse',
+    bpm: 136.0,
+    durationSec: 222.01,
+  },
 ];
 
 export const TRACKS_BY_ID: Record<string, TrackMeta> = Object.fromEntries(

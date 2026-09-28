@@ -34,6 +34,7 @@ const TRACKS = [
   { id: 'who_moved_the_moon', title: 'Who Moved the Moon', audioFile: 'who_moved_the_moon.mp4' },
   { id: 'dub_steps_trip', title: 'Dub Steps Trip', audioFile: 'dub_steps_trip.mp4' },
   { id: 'everyday_g', title: 'Everyday G', audioFile: 'everyday_g.mp4' },
+  { id: 'badass_underglow', title: 'Badass Underglow', audioFile: 'badass_underglow.mp4' },
 ];
 
 const HIT_WINDOWS = {

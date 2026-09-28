@@ -126,6 +126,25 @@ export const PALETTES: Record<string, Palette> = {
       lane: [230, 90, 40],
     },
   },
+  badass_underglow: {
+    name: 'Neon Underglow',
+    low: {
+      bgDeep: [10, 6, 24],
+      bgGlow: [40, 12, 60],
+      note: [220, 90, 210],
+      glow: [190, 70, 220],
+      particle: [120, 90, 230],
+      lane: [70, 30, 96],
+    },
+    high: {
+      bgDeep: [16, 6, 40],
+      bgGlow: [150, 30, 200],
+      note: [255, 130, 245],
+      glow: [90, 230, 255],
+      particle: [255, 120, 240],
+      lane: [200, 60, 235],
+    },
+  },
 };
 
 export const DEFAULT_PALETTE_KEY = 'i_dont_care_tonight';

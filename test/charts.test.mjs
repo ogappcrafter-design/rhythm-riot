@@ -16,8 +16,8 @@ const charts = Object.fromEntries(
 const EXPECTED_LANES = { easy: 3, medium: 4, hard: 4, expert: 5 };
 const DIFFS = ['easy', 'medium', 'hard', 'expert'];
 
-test('manifest lists five launch tracks and each has a chart file', () => {
-  assert.equal(manifest.length, 5);
+test('manifest lists all launch tracks and each has a chart file', () => {
+  assert.equal(manifest.length, 6);
   const files = readdirSync(CHARTS_DIR);
   for (const id of manifest) assert.ok(files.includes(`${id}.json`), `${id}.json missing`);
 });

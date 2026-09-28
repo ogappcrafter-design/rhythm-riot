@@ -19,7 +19,6 @@ import { sampleMoodCurve } from './chartLoader';
 import { sfx, speak } from '../audio/sfx';
 import type { AudioClock } from './audioClock';
 import type { RGB } from '../data/palettes';
-import { laneDir, type ArrowDir } from './laneVisuals';
 
 export interface RunResult {
   trackId: string;
@@ -61,7 +60,6 @@ interface RuntimeNote {
   timeMs: number;
   lane: number;
   colorClass: number;
-  dir: ArrowDir;
   isHold: boolean;
   holdEndMs: number;
   judged: boolean;
@@ -70,6 +68,7 @@ interface RuntimeNote {
   holdActive: boolean;
   holdDone: boolean;
   holdBroken: boolean;
+  holdBrokenAt: number; // perf time the freeze was dropped (for the red-fail flash)
 }
 
 interface FloatingJudge {
@@ -89,13 +88,13 @@ interface FlowStar {
   tw: number; // twinkle phase
 }
 
-// ---- DDR-style playfield geometry (flat lanes, arrows rise into top receptors) ----
+// ---- DDR-style playfield geometry (flat lanes, notes rise into top receptors) ----
 const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
-const RECEPTOR_FRAC = 0.205; // stationary receptor arrows near the top
-const SPAWN_FRAC = 0.72; // arrows appear here (just above the pads) and rise to the receptors
+const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
+const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
 const HOLD_RELEASE_WINDOW = 170;
-const ARROW_SPRITE_SIZE = 128;
+const DOT_SPRITE_SIZE = 128;
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
 const JUDGE_LABEL: Record<Judgement, string> = { perfect: 'PERFECT', great: 'GREAT', good: 'GOOD', miss: 'MISS' };
@@ -107,36 +106,27 @@ const JUDGE_COLORS: Record<Judgement, string> = {
 };
 const MARVELOUS_COLOR = '#c8f9ff';
 
-// Beat-subdivision arrow colors (chart note.c): red 4th, blue 8th, yellow 16th, green triplet.
-const ARROW_COLORS: RGB[] = [
+// Beat-subdivision note-glow colors (chart note.c): red 4th, blue 8th, yellow 16th, green triplet.
+const NOTE_COLORS: RGB[] = [
   [255, 64, 92],
   [56, 182, 255],
   [255, 214, 64],
   [72, 232, 120],
 ];
-const FREEZE_BODY: RGB = [86, 235, 132]; // DDR-green freeze (hold) bodies
+const FREEZE_BODY: RGB = [86, 235, 132]; // freeze (hold) bodies — green when held
+const FREEZE_FAIL: RGB = [255, 60, 80]; // freeze turns red when you drop it
 
-const DIR_ORDER: ArrowDir[] = ['left', 'down', 'up', 'right', 'upleft', 'upright'];
-const DIR_ROT: Record<ArrowDir, number> = {
-  up: 0,
-  down: Math.PI,
-  left: -Math.PI / 2,
-  right: Math.PI / 2,
-  upleft: -Math.PI / 4,
-  upright: Math.PI / 4,
-};
-// Chunky up-pointing arrow polygon (centered at origin, ~92px wide), rotated per direction.
-const ARROW_POLY: [number, number][] = [
-  [0, -46],
-  [46, 2],
-  [22, 2],
-  [22, 42],
-  [-22, 42],
-  [-22, 2],
-  [-46, 2],
+// Facet colors sprinkled across the disco-ball notes for the prismatic look.
+const PRISM: RGB[] = [
+  [255, 90, 140],
+  [255, 200, 90],
+  [120, 255, 170],
+  [90, 210, 255],
+  [190, 130, 255],
+  [255, 120, 220],
 ];
 
-// Bright hues cycled through arrows once the player passes a 100 combo.
+// Bright hues cycled through notes once the player passes a 100 combo.
 const RAINBOW: RGB[] = [
   [255, 96, 128],
   [255, 176, 64],
@@ -179,7 +169,7 @@ export class GameEngine {
   private activeHoldByLane: number[] = [];
 
   private flowStars: FlowStar[] = [];
-  private arrowSprites = new Map<number, HTMLCanvasElement>();
+  private dotSprites = new Map<number, HTMLCanvasElement>();
 
   private raf = 0;
   private running = false;
@@ -219,8 +209,7 @@ export class GameEngine {
       return {
         timeMs: n.timeMs,
         lane,
-        colorClass: Math.max(0, Math.min(ARROW_COLORS.length - 1, n.c ?? 0)),
-        dir: laneDir(this.laneCount, lane),
+        colorClass: Math.max(0, Math.min(NOTE_COLORS.length - 1, n.c ?? 0)),
         isHold,
         holdEndMs: isHold ? n.timeMs + (n.holdMs ?? 0) : n.timeMs,
         judged: false,
@@ -229,6 +218,7 @@ export class GameEngine {
         holdActive: false,
         holdDone: false,
         holdBroken: false,
+        holdBrokenAt: 0,
       };
     });
     this.resize();
@@ -244,7 +234,7 @@ export class GameEngine {
     canvas.height = Math.round(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.particles.resize(this.w, this.h);
-    this.arrowSprites.clear();
+    this.dotSprites.clear();
     this.initFlow();
   }
 
@@ -286,7 +276,7 @@ export class GameEngine {
   destroy(): void {
     this.running = false;
     cancelAnimationFrame(this.raf);
-    this.arrowSprites.clear();
+    this.dotSprites.clear();
   }
 
   // ---- geometry -------------------------------------------------------
@@ -444,9 +434,14 @@ export class GameEngine {
     if (n.holdDone || n.holdBroken) return;
     n.holdBroken = true;
     n.holdActive = false;
+    n.holdBrokenAt = performance.now();
     this.combo = 0; // dropping a hold breaks the streak
     this.lastComboTier = 0;
-    sfx.play('uiBack');
+    this.consecutiveMiss += 1;
+    this.missFlash = 1;
+    // Unmistakable "you let go too early" feedback — red flash + "NG!" (No Good).
+    this.spawnFloater('NG!', '#ff4d6a', this.laneCenterX(n.lane), true);
+    sfx.play('miss');
   }
 
   private spawnFloater(text: string, color: string, x: number, big: boolean): void {
@@ -576,87 +571,94 @@ export class GameEngine {
     }
   }
 
-  // ---- arrow sprite cache --------------------------------------------
-  private getArrowSprite(key: number, color: RGB, dir: ArrowDir): HTMLCanvasElement {
-    const cacheKey = key * 8 + DIR_ORDER.indexOf(dir);
-    const cached = this.arrowSprites.get(cacheKey);
+  // ---- disco-ball dot sprite cache -----------------------------------
+  /** A 3D round glowing note: a faceted mirror-ball with prismatic tiles and a colored halo. */
+  private getDotSprite(key: number, color: RGB): HTMLCanvasElement {
+    const cached = this.dotSprites.get(key);
     if (cached) return cached;
-    const S = ARROW_SPRITE_SIZE;
+    const S = DOT_SPRITE_SIZE;
     const cv = document.createElement('canvas');
     cv.width = S;
     cv.height = S;
     const c = cv.getContext('2d')!;
-    c.translate(S / 2, S / 2);
-    c.rotate(DIR_ROT[dir]);
-    c.lineJoin = 'round';
+    const cx = S / 2;
+    const cy = S / 2;
+    const R = S * 0.34;
 
-    const path = (scale: number) => {
-      c.beginPath();
-      ARROW_POLY.forEach(([px, py], i) => {
-        const x = px * scale;
-        const y = py * scale;
-        if (i === 0) c.moveTo(x, y);
-        else c.lineTo(x, y);
-      });
-      c.closePath();
-    };
-
-    // 1) Outer glow halo.
+    // Outer glow halo in the beat-color (keeps the color coding legible).
     c.save();
-    c.shadowColor = rgbCss(lightenRGB(color, 0.2), 1);
-    c.shadowBlur = S * 0.26;
-    c.fillStyle = rgbCss(color, 1);
-    path(1);
+    c.shadowColor = rgbCss(lightenRGB(color, 0.25), 1);
+    c.shadowBlur = S * 0.3;
+    c.fillStyle = rgbCss(color, 0.9);
+    c.beginPath();
+    c.arc(cx, cy, R * 0.94, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
-    // 2) Glossy body (light top → color → dark base).
-    const g = c.createLinearGradient(0, -48, 0, 44);
-    g.addColorStop(0, rgbCss(lightenRGB(color, 0.6), 1));
-    g.addColorStop(0.45, rgbCss(color, 1));
-    g.addColorStop(1, rgbCss(darkenRGB(color, 0.45), 1));
-    c.fillStyle = g;
-    path(1);
-    c.fill();
+    // Sphere body — clipped to the ball.
+    c.save();
+    c.beginPath();
+    c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.clip();
+    const bg = c.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R * 1.15);
+    bg.addColorStop(0, '#3c4256');
+    bg.addColorStop(1, '#080a14');
+    c.fillStyle = bg;
+    c.fillRect(cx - R, cy - R, R * 2, R * 2);
 
-    // 3) Dark outer edge for definition against bright lanes.
-    c.strokeStyle = 'rgba(0,0,0,0.5)';
-    c.lineWidth = S * 0.05;
-    path(1);
-    c.stroke();
+    // Mirror-ball facet tiles with sphere shading + prismatic sparkle.
+    const tile = R * 0.32;
+    const Lx = -0.5;
+    const Ly = -0.62;
+    const Lz = 0.6;
+    for (let gy = -R; gy < R; gy += tile) {
+      for (let gx = -R; gx < R; gx += tile) {
+        const px = (gx + tile * 0.5) / R;
+        const py = (gy + tile * 0.5) / R;
+        const r2 = px * px + py * py;
+        if (r2 > 1) continue;
+        const nz = Math.sqrt(1 - r2);
+        const diff = Math.max(0, px * Lx + py * Ly + nz * Lz);
+        const h = ((Math.floor(gx) * 73856093) ^ (Math.floor(gy) * 19349663) ^ (key * 83492791)) >>> 0;
+        const rnd = (h % 1000) / 1000;
+        let shade = 0.2 + 0.95 * diff + (rnd - 0.5) * 0.28;
+        shade = Math.max(0.05, Math.min(1.15, shade));
+        let base: RGB = [214, 221, 236];
+        if (rnd < 0.36) {
+          const pc = PRISM[h % PRISM.length];
+          base = [pc[0] * 0.6 + 120, pc[1] * 0.6 + 120, pc[2] * 0.6 + 120];
+        }
+        c.fillStyle = `rgb(${Math.min(255, base[0] * shade) | 0},${Math.min(255, base[1] * shade) | 0},${Math.min(255, base[2] * shade) | 0})`;
+        c.fillRect(cx + gx + 1, cy + gy + 1, tile - 1.6, tile - 1.6);
+        if (diff > 0.82 && rnd > 0.55) {
+          c.fillStyle = 'rgba(255,255,255,0.85)';
+          c.fillRect(cx + gx + tile * 0.3, cy + gy + tile * 0.3, tile * 0.4, tile * 0.4);
+        }
+      }
+    }
 
-    // 4) Bright inner rim (the DDR arrow "stripe").
-    c.strokeStyle = rgbCss(lightenRGB(color, 0.75), 0.95);
+    // Big soft specular highlight (top-left) for the glassy 3D pop.
+    const hl = c.createRadialGradient(cx - R * 0.4, cy - R * 0.45, 0, cx - R * 0.4, cy - R * 0.45, R * 0.75);
+    hl.addColorStop(0, 'rgba(255,255,255,0.8)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = hl;
+    c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    c.restore();
+
+    // Colored rim ring (beat-color identity) + a thin dark edge for contrast.
+    c.strokeStyle = rgbCss(lightenRGB(color, 0.45), 0.95);
     c.lineWidth = S * 0.022;
-    path(0.86);
+    c.beginPath();
+    c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = 'rgba(0,0,0,0.4)';
+    c.lineWidth = S * 0.018;
+    c.beginPath();
+    c.arc(cx, cy, R + S * 0.014, 0, Math.PI * 2);
     c.stroke();
 
-    // 5) Specular highlight arrow.
-    c.fillStyle = 'rgba(255,255,255,0.45)';
-    path(0.5);
-    c.fill();
-
-    this.arrowSprites.set(cacheKey, cv);
+    this.dotSprites.set(key, cv);
     return cv;
-  }
-
-  /** Build the arrow polygon at (x,y), rotated, and run fn to fill/stroke it. */
-  private withArrow(x: number, y: number, scale: number, dir: ArrowDir, fn: (c: CanvasRenderingContext2D) => void): void {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(DIR_ROT[dir]);
-    ctx.beginPath();
-    ARROW_POLY.forEach(([px, py], i) => {
-      const px2 = px * scale;
-      const py2 = py * scale;
-      if (i === 0) ctx.moveTo(px2, py2);
-      else ctx.lineTo(px2, py2);
-    });
-    ctx.closePath();
-    ctx.lineJoin = 'round';
-    fn(ctx);
-    ctx.restore();
   }
 
   // ---- render ---------------------------------------------------------
@@ -784,15 +786,20 @@ export class GameEngine {
     const rainbowHi = Math.floor(songMs / 110) % RAINBOW.length;
     const noteSize = this.laneW * 0.62;
 
-    const colorFor = (n: RuntimeNote): RGB => (rainbow ? RAINBOW[rainbowHi] : ARROW_COLORS[n.colorClass]);
+    const colorFor = (n: RuntimeNote): RGB => (rainbow ? RAINBOW[rainbowHi] : NOTE_COLORS[n.colorClass]);
     const keyFor = (n: RuntimeNote): number => (rainbow ? 100 + rainbowHi : n.colorClass);
+    const now = performance.now();
 
-    // Freeze (hold) bodies first, behind the arrow heads.
+    // Freeze (hold) bodies first, behind the note heads. You must HOLD the whole way down;
+    // a dropped freeze turns red and fades so the miss is unmistakable.
     for (const n of this.notes) {
-      if (!n.isHold || n.holdBroken) continue;
+      if (!n.isHold || n.holdDone) continue;
+      const broken = n.holdBroken;
+      const brokenAge = broken ? now - n.holdBrokenAt : 0;
+      if (broken && brokenAge > 480) continue;
       const headDelta = n.timeMs - tapMs;
       const tailDelta = n.holdEndMs - tapMs;
-      if (tailDelta > APPROACH_MS || headDelta < -goodWin) continue;
+      if (!broken && (tailDelta > APPROACH_MS || headDelta < -goodWin)) continue;
       const pHead = Math.max(0, Math.min(1, this.progressFor(headDelta)));
       const pTail = Math.max(0, Math.min(1, this.progressFor(tailDelta)));
       const yHead = n.holdActive ? this.receptorY : this.yFor(pHead);
@@ -804,36 +811,42 @@ export class GameEngine {
       const bot = Math.max(yHead, yTail);
       const r = wBar / 2;
       const pulse = active ? 0.78 + 0.22 * Math.sin(songMs / 80) : 1;
+      const body = broken ? FREEZE_FAIL : FREEZE_BODY;
 
+      ctx.save();
+      if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
       const grad = ctx.createLinearGradient(0, top, 0, bot);
-      grad.addColorStop(0, rgbCss(lightenRGB(FREEZE_BODY, 0.2), (active ? 0.95 : 0.72) * pulse));
-      grad.addColorStop(1, rgbCss(darkenRGB(FREEZE_BODY, 0.25), active ? 0.9 : 0.6));
+      grad.addColorStop(0, rgbCss(lightenRGB(body, 0.2), (active ? 0.95 : 0.72) * pulse));
+      grad.addColorStop(1, rgbCss(darkenRGB(body, 0.25), active ? 0.9 : 0.6));
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.roundRect(x - r, top, wBar, Math.max(4, bot - top), r);
       ctx.fill();
-      ctx.strokeStyle = rgbCss(lightenRGB(FREEZE_BODY, active ? 0.6 : 0.3), active ? 0.95 : 0.7);
+      ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.6 : 0.3), active ? 0.95 : 0.7);
       ctx.lineWidth = active ? 4 : 2.5;
       ctx.stroke();
-      // Flowing shimmer down the body.
-      ctx.save();
-      ctx.setLineDash([9, 11]);
-      ctx.lineDashOffset = (songMs / 10) % 20;
-      ctx.strokeStyle = `rgba(255,255,255,${active ? 0.6 : 0.3})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x, top + r);
-      ctx.lineTo(x, bot - r);
-      ctx.stroke();
+      // Flowing shimmer down the body (arrows off when broken).
+      if (!broken) {
+        ctx.setLineDash([9, 11]);
+        ctx.lineDashOffset = (songMs / 10) % 20;
+        ctx.strokeStyle = `rgba(255,255,255,${active ? 0.6 : 0.3})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, top + r);
+        ctx.lineTo(x, bot - r);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
-    // Arrow heads (rising directional arrows).
+    // Round disco-ball note heads (rising up the lanes).
     for (const n of this.notes) {
       if (n.judged && !n.holdActive) continue;
       if (n.holdActive) {
-        const sprite = this.getArrowSprite(keyFor(n), colorFor(n), n.dir);
-        this.blitArrow(sprite, this.laneCenterX(n.lane), this.receptorY, noteSize * 1.04, 1);
+        // While a freeze is being held, its head sits pinned & pulsing at the receptor.
+        const beat = 1 + 0.06 * Math.sin(songMs / 90);
+        const sprite = this.getDotSprite(keyFor(n), colorFor(n));
+        this.blitDot(sprite, this.laneCenterX(n.lane), this.receptorY, noteSize * 1.06 * beat, 1);
         continue;
       }
       const delta = n.timeMs - tapMs;
@@ -842,62 +855,63 @@ export class GameEngine {
       const y = this.yFor(p);
       const x = this.laneCenterX(n.lane);
       const alpha = Math.min(1, p * 6); // fade in as it appears at the bottom
-      const sprite = this.getArrowSprite(keyFor(n), colorFor(n), n.dir);
-      this.blitArrow(sprite, x, y, noteSize, alpha);
+      const sprite = this.getDotSprite(keyFor(n), colorFor(n));
+      this.blitDot(sprite, x, y, noteSize, alpha);
     }
   }
 
-  private blitArrow(sprite: HTMLCanvasElement, x: number, y: number, size: number, alpha: number): void {
+  private blitDot(sprite: HTMLCanvasElement, x: number, y: number, size: number, alpha: number): void {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
     ctx.drawImage(sprite, x - size / 2, y - size / 2, size, size);
     ctx.globalAlpha = 1;
   }
 
-  /** Stationary receptor arrows at the top; pulse on the beat, explode on a hit. */
+  /** Stationary ring receptors at the top; pulse on the beat, burst on a hit. */
   private drawReceptors(cw: ReturnType<typeof moodColorway>, moodNorm: number, beatPulse: number): void {
     const ctx = this.ctx;
-    const base = this.laneW * 0.62 / 92; // sprite poly is ~92px wide
     for (let lane = 0; lane < this.laneCount; lane++) {
       const x = this.laneCenterX(lane);
-      const dir = laneDir(this.laneCount, lane);
+      const y = this.receptorY;
       const pop = this.hitPop[lane];
-      const scale = base * (1 + beatPulse * 0.1 + pop * 0.25);
+      const rr = this.laneW * 0.3 * (1 + beatPulse * 0.08 + pop * 0.22);
 
-      // Soft persistent halo so the target is always legible (brightens on the beat + on a hit).
-      const halo = ctx.createRadialGradient(x, this.receptorY, 0, x, this.receptorY, this.laneW * 0.5);
+      // Soft persistent halo so the target is always legible.
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, this.laneW * 0.5);
       halo.addColorStop(0, rgbCss(cw.glow, 0.1 + beatPulse * 0.08 + pop * 0.3));
       halo.addColorStop(1, rgbCss(cw.glow, 0));
       ctx.fillStyle = halo;
-      ctx.fillRect(x - this.laneW * 0.5, this.receptorY - this.laneW * 0.5, this.laneW, this.laneW);
+      ctx.fillRect(x - this.laneW * 0.5, y - this.laneW * 0.5, this.laneW, this.laneW);
 
-      // Ghost outline (always visible target).
-      this.withArrow(x, this.receptorY, scale, dir, (c) => {
-        c.strokeStyle = `rgba(255,255,255,${0.35 + moodNorm * 0.2})`;
-        c.lineWidth = 3.5;
-        c.stroke();
-        c.fillStyle = 'rgba(255,255,255,0.05)';
-        c.fill();
-      });
+      // Ring target — outer ring, faint inner disc, center pip.
+      ctx.strokeStyle = `rgba(255,255,255,${0.4 + moodNorm * 0.25})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.045)';
+      ctx.beginPath();
+      ctx.arc(x, y, rr * 0.94, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.3), 0.5);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, rr * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // Step-zone explosion on a successful hit.
+      // Hit burst — bright ring flash + expanding ring.
       if (pop > 0.01) {
-        const col = cw.glow;
-        this.withArrow(x, this.receptorY, base * (1 + (1 - pop) * 0.9), dir, (c) => {
-          c.globalCompositeOperation = 'lighter';
-          c.fillStyle = rgbCss(lightenRGB(col, 0.3), 0.5 * pop);
-          c.fill();
-          c.strokeStyle = rgbCss(lightenRGB(col, 0.5), 0.8 * pop);
-          c.lineWidth = 4;
-          c.stroke();
-        });
-        // Expanding ring.
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.5), 0.85 * pop);
+        ctx.lineWidth = 4 + pop * 3;
+        ctx.beginPath();
+        ctx.arc(x, y, rr, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.4), 0.5 * pop);
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(x, this.receptorY, this.laneW * (0.3 + (1 - pop) * 0.35), 0, Math.PI * 2);
+        ctx.arc(x, y, this.laneW * (0.32 + (1 - pop) * 0.4), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }

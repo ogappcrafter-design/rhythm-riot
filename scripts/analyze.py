@@ -35,6 +35,7 @@ TRACKS = [
     ("who_moved_the_moon", "who_moved_the_moon.mp4"),
     ("dub_steps_trip", "dub_steps_trip.mp4"),
     ("everyday_g", "everyday_g.mp4"),
+    ("badass_underglow", "badass_underglow.mp4"),
 ]
 
 SR = 22050
