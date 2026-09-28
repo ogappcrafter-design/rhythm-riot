@@ -360,7 +360,7 @@ export class GameEngine {
       this.lastComboTier = 0;
       this.missFlash = 1; // red screen-edge flash
       this.consecutiveMiss += 1;
-      this.spawnFloater('MISS', JUDGE_COLORS.miss, x, true);
+      this.spawnFloater('MISS', JUDGE_COLORS.miss, true);
       // Encouragement after 5 misses in a row ("keep going / don't give up") — spoken + banner.
       if (this.consecutiveMiss % 5 === 0) {
         sfx.play('rally');
@@ -381,7 +381,6 @@ export class GameEngine {
       this.spawnFloater(
         marvelous ? 'MARVELOUS' : JUDGE_LABEL[j],
         marvelous ? MARVELOUS_COLOR : JUDGE_COLORS[j],
-        x,
         j !== 'good',
       );
       // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles).
@@ -426,7 +425,7 @@ export class GameEngine {
     this.hitPop[n.lane] = 1;
     this.particles.emitBurst(x, this.receptorY, moodColorway(this.opts.palette, this.mood.moodNorm).glow, 1, this.opts.visualIntensity);
     this.laneFlash[n.lane] = 1;
-    this.spawnFloater('O.K.!', '#8effc0', x, true);
+    this.spawnFloater('O.K.!', '#8effc0', true);
     sfx.play('great');
   }
 
@@ -440,13 +439,14 @@ export class GameEngine {
     this.consecutiveMiss += 1;
     this.missFlash = 1;
     // Unmistakable "you let go too early" feedback — red flash + "NG!" (No Good).
-    this.spawnFloater('NG!', '#ff4d6a', this.laneCenterX(n.lane), true);
+    this.spawnFloater('NG!', '#ff4d6a', true);
     sfx.play('miss');
   }
 
-  private spawnFloater(text: string, color: string, x: number, big: boolean): void {
-    this.floaters.push({ text, color, x, y: this.receptorY + this.h * 0.11, life: 1, big });
-    if (this.floaters.length > 12) this.floaters.shift();
+  private spawnFloater(text: string, color: string, big: boolean): void {
+    // A single, centered judgement banner (DDR-style) — replaces any previous one so
+    // simultaneous judgements never stack or overlap on screen.
+    this.floaters = [{ text, color, x: this.w / 2, y: this.receptorY + this.h * 0.12, life: 1, big }];
   }
 
   // ---- main loop ------------------------------------------------------

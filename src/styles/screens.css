@@ -423,7 +423,7 @@
 
 .fallback-banner {
   position: absolute;
-  top: calc(58px + var(--safe-top));
+  bottom: calc(26vh + 14px); /* float above the pads, clear of the HUD + groove gauge */
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
@@ -437,6 +437,7 @@
   max-width: 92vw;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 /* ========================= RESULTS =========================== */
