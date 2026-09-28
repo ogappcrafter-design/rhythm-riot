@@ -410,15 +410,13 @@ export class GameEngine {
         marvelous ? MARVELOUS_COLOR : JUDGE_COLORS[j],
         j !== 'good',
       );
-      // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles).
+      // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles) — visual only, no chime.
       if (this.combo >= 100 && this.lastComboTier < 100) {
         this.lastComboTier = 100;
         this.comboPop = 1.8;
-        sfx.play('combo200');
       } else if (this.combo >= 50 && this.lastComboTier < 50) {
         this.lastComboTier = 50;
         this.comboPop = 1.8;
-        sfx.play('combo100');
       }
     }
     const energy = sampleMoodCurve(this.opts.chart, n.timeMs);
