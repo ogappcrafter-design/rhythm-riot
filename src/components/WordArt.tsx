@@ -48,6 +48,9 @@ export function WordArt({
   const approxWidth = Math.max(text.length * size * 0.66 + size * 0.8, size * 2.2);
   const height = size * 1.5;
   const anchorX = align === 'start' ? size * 0.35 : align === 'end' ? approxWidth - size * 0.35 : approxWidth / 2;
+  // Keep the horizontal anchor when fitting inside a box, so start/end aligned titles don't
+  // drift to center.
+  const par = `${align === 'start' ? 'xMin' : align === 'end' ? 'xMax' : 'xMid'}YMid meet`;
 
   return (
     <svg
@@ -55,7 +58,7 @@ export function WordArt({
       viewBox={`0 0 ${approxWidth} ${height}`}
       width="100%"
       height={fitHeight ? '100%' : undefined}
-      preserveAspectRatio={fitHeight ? 'xMidYMid meet' : 'xMidYMid meet'}
+      preserveAspectRatio={par}
       role="img"
       aria-label={text}
       style={{ display: 'block', overflow: 'visible' }}

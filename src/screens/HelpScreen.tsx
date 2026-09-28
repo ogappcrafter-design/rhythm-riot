@@ -29,7 +29,7 @@ export function HelpScreen() {
         <div className="card center" style={{ padding: 18 }}>
           <IconRiotShard size={40} color="#7c5cff" />
           <div style={{ height: 34, width: 220, marginTop: 8 }}>
-            <WordArt text="RIDE THE MOOD" size={22} />
+            <WordArt text="RIDE THE MOOD" size={22} fitHeight />
           </div>
         </div>
 

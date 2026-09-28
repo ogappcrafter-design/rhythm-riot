@@ -31,12 +31,12 @@ export function ReadyScreen({ trackId, difficulty }: { trackId: string; difficul
 
       <div className="stack center" style={{ flex: 1, justifyContent: 'center', gap: 18 }}>
         <div style={{ height: 46, width: '100%' }}>
-          <WordArt text={track.title} size={30} colors={accent} tilt={-3} />
+          <WordArt text={track.title} size={30} colors={accent} tilt={-3} fitHeight />
         </div>
 
         <DifficultyGem diff={difficulty} active size={64} />
-        <div style={{ height: 30 }}>
-          <WordArt text={DIFF_NAME[difficulty]} size={22} colors={accent} tilt={0} />
+        <div style={{ height: 34, width: '100%' }}>
+          <WordArt text={DIFF_NAME[difficulty]} size={22} colors={accent} tilt={0} fitHeight />
         </div>
 
         {/* Lane preview */}

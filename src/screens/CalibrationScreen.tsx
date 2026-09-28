@@ -95,7 +95,7 @@ export function CalibrationScreen() {
           onPointerDown={(e) => { e.preventDefault(); onTap(); }}
         >
           <div style={{ height: 40, width: 160 }}>
-            <WordArt text={running ? 'TAP!' : 'READY'} size={26} />
+            <WordArt text={running ? 'TAP!' : 'READY'} size={26} fitHeight />
           </div>
         </button>
 

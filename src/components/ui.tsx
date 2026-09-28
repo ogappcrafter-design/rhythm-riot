@@ -84,7 +84,7 @@ export function GradeBadge({ grade, size = 120 }: { grade: string; size?: number
   };
   return (
     <div style={{ width: size, height: size }}>
-      <WordArt text={grade} size={size * 0.82} colors={colors[grade] ?? colors.B} tilt={-6} />
+      <WordArt text={grade} size={size * 0.82} colors={colors[grade] ?? colors.B} tilt={-6} fitHeight />
     </div>
   );
 }
@@ -109,7 +109,7 @@ export function ScreenHeader({
         </button>
       )}
       <div style={{ flex: 1, height: 52 }}>
-        <WordArt text={title} size={34} colors={colors} align="middle" />
+        <WordArt text={title} size={34} colors={colors} align="middle" fitHeight />
       </div>
       {right ?? (onBack ? <div style={{ width: 44 }} /> : null)}
     </div>

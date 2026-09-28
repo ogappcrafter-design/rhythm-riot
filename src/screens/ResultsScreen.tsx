@@ -56,13 +56,14 @@ export function ResultsScreen({
       </div>
       <div className="results-celebrate">
         <div style={{ height: 56 }}>
-          <WordArt text="SONG COMPLETE" size={40} colors={accent} />
+          <WordArt text="SONG COMPLETE" size={40} colors={accent} fitHeight />
         </div>
         <div style={{ height: 40, marginTop: -6 }}>
           <WordArt
             text={clearedLine}
             size={30}
             colors={result.grade === 'S' || result.grade === 'A' ? ['#fff', '#ffd76a', '#ff8a3c'] : ['#fff', '#8ef0ff', '#22d3ee']}
+            fitHeight
           />
         </div>
       </div>

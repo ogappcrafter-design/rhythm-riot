@@ -312,7 +312,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
         <div className="overlay center">
           <div className="loader-ring" />
           <div style={{ height: 40, marginTop: 20, width: 260 }}>
-            <WordArt text="LOADING" size={26} colors={accent} />
+            <WordArt text="LOADING" size={26} colors={accent} fitHeight />
           </div>
           <div className="subtle" style={{ marginTop: 6 }}>{track.title}</div>
         </div>
@@ -322,7 +322,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       {phase === 'error' && (
         <div className="overlay center">
           <div style={{ height: 44, width: 280 }}>
-            <WordArt text="TRACK ERROR" size={26} colors={['#ffd9df', '#ff9db0', '#ff5d73']} />
+            <WordArt text="TRACK ERROR" size={26} colors={['#ffd9df', '#ff9db0', '#ff5d73']} fitHeight />
           </div>
           <div className="subtle" style={{ marginTop: 10, maxWidth: 300, textAlign: 'center' }}>{errorMsg}</div>
           <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={doQuit}>
@@ -335,7 +335,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       {phase === 'countdown' && count === -1 && (
         <div className="overlay center countdown">
           <div style={{ height: 90, width: 'min(520px, 88vw)' }}>
-            <WordArt text="ARE YOU READY?" size={40} colors={accent} tilt={-3} />
+            <WordArt text="ARE YOU READY?" size={40} colors={accent} tilt={-3} fitHeight />
           </div>
         </div>
       )}
@@ -344,14 +344,14 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       {phase === 'countdown' && count > 0 && (
         <div className="overlay center countdown">
           <div style={{ height: 140, width: 200 }}>
-            <WordArt text={`${count}`} size={120} colors={accent} tilt={0} />
+            <WordArt text={`${count}`} size={120} colors={accent} tilt={0} fitHeight />
           </div>
         </div>
       )}
       {phase === 'countdown' && count === 0 && (
         <div className="overlay center countdown">
           <div style={{ height: 120, width: 260 }}>
-            <WordArt text="GO!" size={96} colors={['#fff', '#8bff9b', '#22d3ee']} />
+            <WordArt text="GO!" size={96} colors={['#fff', '#8bff9b', '#22d3ee']} fitHeight />
           </div>
         </div>
       )}
@@ -379,7 +379,7 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
       {phase === 'paused' && (
         <div className="overlay center pause-menu">
           <div style={{ height: 60, width: 240 }}>
-            <WordArt text="PAUSED" size={40} colors={accent} />
+            <WordArt text="PAUSED" size={40} colors={accent} fitHeight />
           </div>
           <div className="stack" style={{ width: 240, marginTop: 20 }}>
             <button className="btn btn-primary btn-block" onClick={doResume}>Resume</button>

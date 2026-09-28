@@ -36,7 +36,7 @@ function TrackRow({ tp }: { tp: TrackProgress }) {
     <div className="card profile-track">
       <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0, height: 26 }}>
-          <WordArt text={tp.title} size={18} align="start" colors={accent} tilt={-2} />
+          <WordArt text={tp.title} size={18} align="start" colors={accent} tilt={-2} fitHeight />
         </div>
         <div className="row" style={{ gap: 3 }}>
           <IconStar size={15} filled color="#ffd76a" />
@@ -88,7 +88,7 @@ export function ProfileScreen() {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ height: 32, width: '100%' }}>
-            <WordArt text={p.rank.name.toUpperCase()} size={26} align="start" colors={['#fff', '#ffd76a', '#ff8a3c']} tilt={-3} />
+            <WordArt text={p.rank.name.toUpperCase()} size={26} align="start" colors={['#fff', '#ffd76a', '#ff8a3c']} tilt={-3} fitHeight />
           </div>
           <div className="rank-bar">
             <div className="rank-bar-fill" style={{ width: `${Math.round(p.rank.progress * 100)}%` }} />
@@ -151,7 +151,7 @@ export function ProfileScreen() {
 
           {/* Per-track breakdown */}
           <div style={{ height: 30, marginTop: 18, marginBottom: 4 }}>
-            <WordArt text="BY TRACK" size={20} align="start" colors={['#fff', '#b9a3ff', '#7c5cff']} />
+            <WordArt text="BY TRACK" size={20} align="start" colors={['#fff', '#b9a3ff', '#7c5cff']} fitHeight />
           </div>
           <div className="stack" style={{ paddingBottom: 20 }}>
             {p.tracks.map((tp) => (
