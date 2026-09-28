@@ -48,10 +48,14 @@ const DIFF_CONFIG = {
   // holdFraction is a CEILING on how many taps become holds. It ramps up with difficulty so
   // holds read as skill-gated accents (beginners get the fewest); naturally-sparse tracks stay
   // below the ceiling on their own.
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.10 },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.11 },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.12 },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.13 },
+  // slideFraction: share of holds promoted to cross-lane SLIDE (drag) notes, and slideMaxStep:
+  // how many lanes a slide may travel. Beginners get a few gentle 1-lane drags; experts get more,
+  // wider ones. A slide always resolves during a cleared span (no other notes), so the drag path
+  // is unobstructed.
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.10, slideFraction: 0.25, slideMaxStep: 1 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.11, slideFraction: 0.4, slideMaxStep: 2 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.12, slideFraction: 0.5, slideMaxStep: 2 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.13, slideFraction: 0.6, slideMaxStep: 3 },
 };
 
 // Hold-note tuning (spec 5.4 "hold" type). Holds are now PITCH-BASED: a note becomes a hold only
@@ -262,17 +266,59 @@ function classifyColor(tMs, beatsMs) {
   return 1;
 }
 
+// Promote some holds to cross-lane SLIDE (drag) notes: the freeze body travels from its lane to a
+// target lane over its duration, so the player drags to follow it (Chunithm-style), judged like a
+// freeze (hold the path to the end = O.K., wander off/let go = N.G.). Deterministic (seeded).
+function convertSlides(trackId, diff, notes, laneCount) {
+  const cfg = DIFF_CONFIG[diff];
+  if (!cfg.slideFraction || laneCount < 2) return;
+  const SLIDE_MIN_MS = 360; // don't drag anything shorter than this — it'd be a twitchy flick
+  const MS_PER_LANE = 300; // require at least this much time per lane crossed (fair drag speed)
+  const rng = mulberry32(hashSeed(`${trackId}::${diff}::slides`));
+  for (const n of notes) {
+    if (n.type !== 'hold') continue;
+    if (n.holdMs < SLIDE_MIN_MS) continue;
+    if (rng() >= cfg.slideFraction) continue;
+    // Cap travel so the drag never has to move faster than ~one lane per 300ms.
+    const maxStep = Math.max(1, Math.min(cfg.slideMaxStep, laneCount - 1, Math.floor(n.holdMs / MS_PER_LANE)));
+    let dir = rng() < 0.5 ? -1 : 1;
+    let step = 1 + Math.floor(rng() * maxStep); // 1..maxStep
+    let end = n.lane + dir * step;
+    if (end < 0 || end > laneCount - 1) end = n.lane - dir * step; // reflect off the wall
+    end = Math.max(0, Math.min(laneCount - 1, end));
+    if (end === n.lane) continue; // no room to travel → stays a straight freeze
+    n.type = 'slide';
+    n.endLane = end;
+    // A gentle S-curve on longer, wider slides (hard/expert) — otherwise a straight diagonal.
+    const start = n.timeMs;
+    const finish = n.timeMs + n.holdMs;
+    if (cfg.slideMaxStep >= 2 && n.holdMs >= 700 && Math.abs(end - n.lane) >= 2 && rng() < 0.4) {
+      const midLane = Math.max(0, Math.min(laneCount - 1, n.lane + (dir * (step - 1) || dir)));
+      n.path = [
+        { tMs: start, lane: n.lane },
+        { tMs: Math.round((start + finish) / 2), lane: midLane },
+        { tMs: finish, lane: end },
+      ];
+    } else {
+      n.path = [
+        { tMs: start, lane: n.lane },
+        { tMs: finish, lane: end },
+      ];
+    }
+  }
+}
+
 // Keep the grid CLEAR while a sustain is held: drop every other note (any lane) whose time falls
-// inside a hold's span. Holding one arrow while tapping others is the classic DDR difficulty spike
-// and also causes arrows to visually collide with the freeze body — this removes both. Hold heads
-// (and other holds) are always kept; only taps landing during a sustain are pruned.
+// inside a hold/slide span. Holding while tapping others is the classic difficulty spike and also
+// collides visually with the body — this removes both. Sustains are always kept; only taps landing
+// during one are pruned.
 function clearHoldOverlaps(notes) {
-  const holds = notes.filter((n) => n.type === 'hold');
+  const holds = notes.filter((n) => n.type === 'hold' || n.type === 'slide');
   if (!holds.length) return notes;
   const HEAD_GUARD = 30; // don't nuke a note sitting essentially on the hold's own onset frame
   const TAIL_GUARD = 90; // let a note land right as the sustain releases
   return notes.filter((n) => {
-    if (n.type === 'hold') return true;
+    if (n.type === 'hold' || n.type === 'slide') return true;
     for (const h of holds) {
       const start = h.timeMs;
       const end = h.timeMs + (h.holdMs || 0);
@@ -286,6 +332,9 @@ function clearHoldOverlaps(notes) {
 function finalizeNotes(notes, beatsMs) {
   return notes.map((n) => {
     const c = classifyColor(n.timeMs, beatsMs);
+    if (n.type === 'slide') {
+      return { timeMs: n.timeMs, lane: n.lane, type: 'slide', holdMs: n.holdMs, endLane: n.endLane, path: n.path, c };
+    }
     return n.type === 'hold'
       ? { timeMs: n.timeMs, lane: n.lane, type: 'hold', holdMs: n.holdMs, c }
       : { timeMs: n.timeMs, lane: n.lane, type: 'tap', c };
@@ -300,6 +349,7 @@ function buildDifficulty(trackId, diff, analysis) {
   const picked = selectNotes(candidates, target, cfg.minSpacingMs);
   const notes = assignLanes(trackId, diff, picked, cfg.laneCount);
   markHolds(trackId, diff, notes, analysis);
+  convertSlides(trackId, diff, notes, cfg.laneCount);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 
@@ -331,6 +381,7 @@ function buildExpert(trackId, analysis) {
   const all = [...base, ...extras].sort((a, b) => a.tMs - b.tMs);
   const notes = assignLanes(trackId, 'expert', all, cfg.laneCount);
   markHolds(trackId, 'expert', notes, analysis);
+  convertSlides(trackId, 'expert', notes, cfg.laneCount);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 

@@ -47,6 +47,9 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
   const [titleIntro, setTitleIntro] = useState(false);
   const laneElsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const keyDownRef = useRef<Set<number>>(new Set());
+  const laneControlsRef = useRef<HTMLDivElement | null>(null);
+  const pointerLaneRef = useRef<Map<number, number>>(new Map());
+  const laneCountsRef = useRef<number[]>([]); // press-count per lane (for multi-touch + drag)
 
   const accent: [string, string, string] = ['#ffffff', rgbCss(pal.high.note), rgbCss(pal.high.glow)];
 
@@ -245,6 +248,59 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     setPadActive(lane, false);
   };
 
+  // ---- position-based pad input (supports multi-touch taps AND single-finger drags across
+  //      lanes, which slide notes require). A lane is "down" while any pointer sits over it. ----
+  const ensureCounts = () => {
+    if (laneCountsRef.current.length !== laneCount) laneCountsRef.current = new Array(laneCount).fill(0);
+    return laneCountsRef.current;
+  };
+  const laneFromClientX = (clientX: number) => {
+    const el = laneControlsRef.current;
+    if (!el) return -1;
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(laneCount - 1, Math.floor((clientX - r.left) / (r.width / laneCount))));
+  };
+  const laneDown = (lane: number) => {
+    const c = ensureCounts();
+    if (c[lane] === 0) pressLane(lane);
+    c[lane] += 1;
+  };
+  const laneUp = (lane: number) => {
+    const c = ensureCounts();
+    if (c[lane] > 0) {
+      c[lane] -= 1;
+      if (c[lane] === 0) releaseLane(lane);
+    }
+  };
+  const onPadDown = (e: React.PointerEvent) => {
+    if (phase !== 'playing') return;
+    e.preventDefault();
+    laneControlsRef.current?.setPointerCapture?.(e.pointerId);
+    const lane = laneFromClientX(e.clientX);
+    if (lane < 0) return;
+    pointerLaneRef.current.set(e.pointerId, lane);
+    laneDown(lane);
+  };
+  const onPadMove = (e: React.PointerEvent) => {
+    const map = pointerLaneRef.current;
+    if (!map.has(e.pointerId)) return;
+    const lane = laneFromClientX(e.clientX);
+    const prev = map.get(e.pointerId)!;
+    if (lane !== prev && lane >= 0) {
+      laneUp(prev);
+      laneDown(lane);
+      map.set(e.pointerId, lane);
+    }
+  };
+  const onPadUp = (e: React.PointerEvent) => {
+    const map = pointerLaneRef.current;
+    const prev = map.get(e.pointerId);
+    if (prev !== undefined) {
+      laneUp(prev);
+      map.delete(e.pointerId);
+    }
+  };
+
   const doPause = () => {
     if (phase !== 'playing') return;
     engineRef.current?.pause();
@@ -288,17 +344,23 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
 
       {/* Lane controls */}
       {(phase === 'playing' || phase === 'paused' || phase === 'countdown') && (
-        <div className="lane-controls" style={{ '--lanes': laneCount } as React.CSSProperties}>
+        <div
+          className="lane-controls"
+          ref={laneControlsRef}
+          style={{ '--lanes': laneCount } as React.CSSProperties}
+          onPointerDown={onPadDown}
+          onPointerMove={onPadMove}
+          onPointerUp={onPadUp}
+          onPointerCancel={onPadUp}
+          onLostPointerCapture={onPadUp}
+        >
           {Array.from({ length: laneCount }).map((_, i) => (
             <button
               key={i}
               ref={(el) => { laneElsRef.current[i] = el; }}
               className="lane-btn"
               style={{ ['--pad' as string]: rgbCss(pal.high.glow) }}
-              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); pressLane(i); }}
-              onPointerUp={(e) => { e.preventDefault(); releaseLane(i); }}
-              onPointerCancel={() => releaseLane(i)}
-              onLostPointerCapture={() => releaseLane(i)}
+              tabIndex={-1}
               aria-label={`Lane ${i + 1}`}
             >
               <PadTarget />

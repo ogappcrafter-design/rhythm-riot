@@ -51,10 +51,19 @@ for (const id of manifest) {
       for (const n of dc.notes) {
         assert.ok(n.timeMs >= 0 && n.timeMs <= chart.durationMs + 1000, `${d} time OOB @${n.timeMs}`);
         assert.ok(n.lane >= 0 && n.lane < dc.laneCount, `${d} lane OOB ${n.lane}`);
-        assert.ok(n.type === 'tap' || n.type === 'hold', `${d} bad type ${n.type}`);
-        if (n.type === 'hold') {
-          assert.ok(n.holdMs > 0, `${d} hold missing holdMs @${n.timeMs}`);
-          assert.ok(n.timeMs + n.holdMs <= chart.durationMs + 1000, `${d} hold tail OOB @${n.timeMs}`);
+        assert.ok(n.type === 'tap' || n.type === 'hold' || n.type === 'slide', `${d} bad type ${n.type}`);
+        if (n.type === 'hold' || n.type === 'slide') {
+          assert.ok(n.holdMs > 0, `${d} ${n.type} missing holdMs @${n.timeMs}`);
+          assert.ok(n.timeMs + n.holdMs <= chart.durationMs + 1000, `${d} ${n.type} tail OOB @${n.timeMs}`);
+        }
+        if (n.type === 'slide') {
+          assert.ok(Array.isArray(n.path) && n.path.length >= 2, `${d} slide missing path @${n.timeMs}`);
+          assert.equal(n.path[0].lane, n.lane, `${d} slide path head mismatch @${n.timeMs}`);
+          assert.notEqual(n.path[n.path.length - 1].lane, n.lane, `${d} slide doesn't travel @${n.timeMs}`);
+          for (const pt of n.path) {
+            assert.ok(pt.lane >= 0 && pt.lane < dc.laneCount, `${d} slide path lane OOB ${pt.lane}`);
+            assert.ok(pt.tMs >= n.timeMs - 1 && pt.tMs <= n.timeMs + n.holdMs + 1, `${d} slide path time OOB @${pt.tMs}`);
+          }
         }
         assert.ok(n.timeMs >= last, `${d} not sorted @${n.timeMs}`);
         last = n.timeMs;

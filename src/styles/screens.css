@@ -320,6 +320,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  pointer-events: none; /* the .lane-controls container handles all pointer input (drag support) */
 }
 .lane-btn.active {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(124, 92, 255, 0.35));

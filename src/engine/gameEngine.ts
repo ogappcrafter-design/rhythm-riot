@@ -60,7 +60,9 @@ interface RuntimeNote {
   timeMs: number;
   lane: number;
   colorClass: number;
-  isHold: boolean;
+  isHold: boolean; // hold OR slide (any sustained note)
+  isSlide: boolean;
+  path: { tMs: number; lane: number }[]; // lane over time (single point for a straight hold)
   holdEndMs: number;
   judged: boolean;
   judgement: Judgement | null;
@@ -69,6 +71,7 @@ interface RuntimeNote {
   holdDone: boolean;
   holdBroken: boolean;
   holdBrokenAt: number; // perf time the freeze was dropped (for the red-fail flash)
+  graceMs: number; // how long the required lane hasn't been held (slides/holds break past a grace)
 }
 
 interface FloatingJudge {
@@ -93,7 +96,7 @@ const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
 const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
-const HOLD_RELEASE_WINDOW = 170;
+const SLIDE_GRACE_MS = 140; // how long you can be off a sustain's required lane before it breaks
 const DOT_SPRITE_SIZE = 128;
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
@@ -166,7 +169,7 @@ export class GameEngine {
   private laneFlash: number[] = []; // pad-press / hit wash per lane
   private hitPop: number[] = []; // successful-hit step explosion per lane (decays 1→0)
   private lanePressed: boolean[] = [];
-  private activeHoldByLane: number[] = [];
+  private activeSustains: RuntimeNote[] = []; // holds + slides currently being held
 
   private flowStars: FlowStar[] = [];
   private dotSprites = new Map<number, HTMLCanvasElement>();
@@ -202,15 +205,22 @@ export class GameEngine {
     this.laneFlash = new Array(this.laneCount).fill(0);
     this.hitPop = new Array(this.laneCount).fill(0);
     this.lanePressed = new Array(this.laneCount).fill(false);
-    this.activeHoldByLane = new Array(this.laneCount).fill(-1);
     this.notes = this.diffChart.notes.map((n) => {
-      const isHold = n.type === 'hold' && !!n.holdMs;
+      const isSlide = n.type === 'slide' && !!n.holdMs;
+      const isHold = (n.type === 'hold' || isSlide) && !!n.holdMs;
       const lane = Math.min(n.lane, this.laneCount - 1);
+      const clampLane = (l: number) => Math.max(0, Math.min(this.laneCount - 1, l));
+      const path =
+        isSlide && n.path && n.path.length >= 2
+          ? n.path.map((p) => ({ tMs: p.tMs, lane: clampLane(p.lane) }))
+          : [{ tMs: n.timeMs, lane }];
       return {
         timeMs: n.timeMs,
         lane,
         colorClass: Math.max(0, Math.min(NOTE_COLORS.length - 1, n.c ?? 0)),
         isHold,
+        isSlide,
+        path,
         holdEndMs: isHold ? n.timeMs + (n.holdMs ?? 0) : n.timeMs,
         judged: false,
         judgement: null,
@@ -219,6 +229,7 @@ export class GameEngine {
         holdDone: false,
         holdBroken: false,
         holdBrokenAt: 0,
+        graceMs: 0,
       };
     });
     this.resize();
@@ -302,6 +313,23 @@ export class GameEngine {
   private yFor(p: number): number {
     return this.spawnY + (this.receptorY - this.spawnY) * p; // rises upward as p→1
   }
+  /** The lane a sustained note occupies at time t (interpolated along a slide's path). */
+  private laneAt(n: RuntimeNote, t: number): number {
+    const p = n.path;
+    if (p.length < 2) return p[0].lane;
+    if (t <= p[0].tMs) return p[0].lane;
+    const last = p[p.length - 1];
+    if (t >= last.tMs) return last.lane;
+    for (let i = 1; i < p.length; i++) {
+      if (t <= p[i].tMs) {
+        const a = p[i - 1];
+        const b = p[i];
+        const f = (t - a.tMs) / Math.max(1, b.tMs - a.tMs);
+        return a.lane + (b.lane - a.lane) * f;
+      }
+    }
+    return last.lane;
+  }
 
   // ---- input ----------------------------------------------------------
   pressLane(lane: number): void {
@@ -332,21 +360,20 @@ export class GameEngine {
     const j = judgeTiming(bestErr, win);
     this.judgeHead(n, j, bestErr);
     if (n.isHold && j !== 'miss') {
+      // Start tracking this sustain; updateSustains() keeps it alive while the required lane
+      // (which moves for a slide) stays held, and resolves it O.K./N.G.
       n.holdActive = true;
-      this.activeHoldByLane[lane] = bestIdx;
+      n.graceMs = 0;
+      if (!this.activeSustains.includes(n)) this.activeSustains.push(n);
     }
   }
 
   releaseLane(lane: number): void {
     if (lane < 0 || lane >= this.laneCount) return;
     this.lanePressed[lane] = false;
-    const idx = this.activeHoldByLane[lane];
-    if (idx < 0) return;
-    const n = this.notes[idx];
-    const songMs = this.opts.clock.getPositionMs() - this.opts.latencyOffsetMs;
-    if (songMs >= n.holdEndMs - HOLD_RELEASE_WINDOW) this.completeHold(n);
-    else this.breakHold(n);
-    this.activeHoldByLane[lane] = -1;
+    // Sustains are no longer resolved on release directly — updateSustains() watches lanePressed
+    // against each sustain's required (possibly moving) lane, so a slide survives finger moves and
+    // only fails after a short grace of not following the path.
   }
 
   private judgeHead(n: RuntimeNote, j: Judgement, err = Infinity): void {
@@ -419,13 +446,15 @@ export class GameEngine {
     if (n.holdDone || n.holdBroken) return;
     n.holdDone = true;
     n.holdActive = false;
+    this.activeSustains = this.activeSustains.filter((s) => s !== n);
     const bonus = 120 + Math.round((n.holdEndMs - n.timeMs) / 12);
     this.score += bonus;
-    const x = this.laneCenterX(n.lane);
-    this.hitPop[n.lane] = 1;
+    const endLane = Math.round(this.laneAt(n, n.holdEndMs));
+    const x = this.laneCenterX(endLane);
+    this.hitPop[endLane] = 1;
     this.particles.emitBurst(x, this.receptorY, moodColorway(this.opts.palette, this.mood.moodNorm).glow, 1, this.opts.visualIntensity);
-    this.laneFlash[n.lane] = 1;
-    this.spawnFloater('O.K.!', '#8effc0', true);
+    this.laneFlash[endLane] = 1;
+    this.spawnFloater(n.isSlide ? 'CLEAR!' : 'O.K.!', '#8effc0', true);
     sfx.play('great');
   }
 
@@ -434,11 +463,12 @@ export class GameEngine {
     n.holdBroken = true;
     n.holdActive = false;
     n.holdBrokenAt = performance.now();
-    this.combo = 0; // dropping a hold breaks the streak
+    this.activeSustains = this.activeSustains.filter((s) => s !== n);
+    this.combo = 0; // dropping a hold/slide breaks the streak
     this.lastComboTier = 0;
     this.consecutiveMiss += 1;
     this.missFlash = 1;
-    // Unmistakable "you let go too early" feedback — red flash + "NG!" (No Good).
+    // Unmistakable "you let go / wandered off the path" feedback — red flash + "NG!" (No Good).
     this.spawnFloater('NG!', '#ff4d6a', true);
     sfx.play('miss');
   }
@@ -463,7 +493,7 @@ export class GameEngine {
 
     const songMs = this.opts.clock.getPositionMs();
     this.autoMiss(songMs);
-    this.updateHolds(songMs);
+    this.updateSustains(songMs, dt);
     this.mood.update(dt);
     this.particles.update(dt, this.mood.moodNorm, this.opts.visualIntensity);
     this.updateFlow(dt);
@@ -507,16 +537,21 @@ export class GameEngine {
     }
   }
 
-  private updateHolds(songMs: number): void {
+  private updateSustains(songMs: number, dt: number): void {
     const t = songMs - this.opts.latencyOffsetMs;
-    for (let lane = 0; lane < this.laneCount; lane++) {
-      const idx = this.activeHoldByLane[lane];
-      if (idx < 0) continue;
-      const n = this.notes[idx];
+    // Iterate a copy — complete/break mutate activeSustains.
+    for (const n of [...this.activeSustains]) {
       if (t >= n.holdEndMs) {
-        // Held all the way through.
-        this.completeHold(n);
-        this.activeHoldByLane[lane] = -1;
+        this.completeHold(n); // followed the path all the way through → O.K./CLEAR
+        continue;
+      }
+      // The lane you must be holding right now (moves along a slide's path).
+      const required = Math.round(this.laneAt(n, t));
+      if (this.lanePressed[required]) {
+        n.graceMs = 0;
+      } else {
+        n.graceMs += dt;
+        if (n.graceMs > SLIDE_GRACE_MS) this.breakHold(n); // let go / wandered off → N.G.
       }
     }
   }
@@ -799,6 +834,12 @@ export class GameEngine {
       if (broken && brokenAge > 480) continue;
       const headDelta = n.timeMs - tapMs;
       const tailDelta = n.holdEndMs - tapMs;
+      if (n.isSlide) {
+        // Visible for the whole approach so you can read the drag path coming.
+        if (!broken && (headDelta > APPROACH_MS || tailDelta < -goodWin)) continue;
+        this.drawSlideBody(n, tapMs, songMs, broken, brokenAge);
+        continue;
+      }
       if (!broken && (tailDelta > APPROACH_MS || headDelta < -goodWin)) continue;
       const pHead = Math.max(0, Math.min(1, this.progressFor(headDelta)));
       const pTail = Math.max(0, Math.min(1, this.progressFor(tailDelta)));
@@ -843,10 +884,12 @@ export class GameEngine {
     for (const n of this.notes) {
       if (n.judged && !n.holdActive) continue;
       if (n.holdActive) {
-        // While a freeze is being held, its head sits pinned & pulsing at the receptor.
+        // While held, the head rides the receptor line — and for a slide it slides sideways to
+        // the lane you must currently be on, showing you where to drag.
         const beat = 1 + 0.06 * Math.sin(songMs / 90);
+        const followLane = n.isSlide ? this.laneAt(n, tapMs) : n.lane;
         const sprite = this.getDotSprite(keyFor(n), colorFor(n));
-        this.blitDot(sprite, this.laneCenterX(n.lane), this.receptorY, noteSize * 1.06 * beat, 1);
+        this.blitDot(sprite, this.laneCenterX(followLane), this.receptorY, noteSize * 1.06 * beat, 1);
         continue;
       }
       const delta = n.timeMs - tapMs;
@@ -865,6 +908,47 @@ export class GameEngine {
     ctx.globalAlpha = alpha;
     ctx.drawImage(sprite, x - size / 2, y - size / 2, size, size);
     ctx.globalAlpha = 1;
+  }
+
+  /** A SLIDE body: a thick ribbon that snakes across lanes along the note's path (drag to follow). */
+  private drawSlideBody(n: RuntimeNote, tapMs: number, songMs: number, broken: boolean, brokenAge: number): void {
+    const ctx = this.ctx;
+    const active = n.holdActive;
+    const startT = active ? tapMs : n.timeMs; // from the receptor if held, else from the head
+    const endT = Math.min(n.holdEndMs, tapMs + APPROACH_MS);
+    if (endT <= startT) return;
+    const wBar = this.laneW * 0.3;
+    const body = broken ? FREEZE_FAIL : FREEZE_BODY;
+    const N = 20;
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= N; i++) {
+      const t = startT + ((endT - startT) * i) / N;
+      const p = Math.max(0, Math.min(1, this.progressFor(t - tapMs)));
+      pts.push([this.laneCenterX(this.laneAt(n, t)), this.yFor(p)]);
+    }
+    ctx.save();
+    if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    // Thick body.
+    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.35 : 0.18), active ? 0.92 : 0.66);
+    ctx.lineWidth = wBar;
+    ctx.stroke();
+    // Bright core.
+    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.8 : 0.55), active ? 0.95 : 0.75);
+    ctx.lineWidth = wBar * 0.34;
+    ctx.stroke();
+    // Flowing shimmer (off when broken).
+    if (!broken) {
+      ctx.setLineDash([9, 12]);
+      ctx.lineDashOffset = (songMs / 10) % 21;
+      ctx.strokeStyle = `rgba(255,255,255,${active ? 0.65 : 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** Stationary ring receptors at the top; pulse on the beat, burst on a hit. */

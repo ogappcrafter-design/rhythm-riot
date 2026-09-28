@@ -8,18 +8,29 @@ export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
 export const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert'];
 
-/** Note type is a field even though only "tap" ships in v1, so "hold" can be added
- *  later without a schema break (spec Section 5.4 note). */
-export type NoteType = 'tap' | 'hold';
+/** Note types: tap, hold (freeze — press & hold in place), and slide (a hold whose body
+ *  travels across lanes; the player drags to follow it — Chunithm-style, judged like a freeze). */
+export type NoteType = 'tap' | 'hold' | 'slide';
+
+/** A waypoint on a slide's path: the lane the slide occupies at a given time. */
+export interface SlidePoint {
+  tMs: number;
+  lane: number;
+}
 
 export interface ChartNote {
   timeMs: number;
   lane: number;
   type: NoteType;
-  /** Duration for hold notes; absent/0 for taps. Reserved for v2. */
+  /** Duration for hold/slide notes; absent/0 for taps. */
   holdMs?: number;
   /**
-   * Beat-subdivision color class (DDR-style arrow coloring), computed at build time from the
+   * Slide path (present only on type "slide"): lane over time from head to tail, starting at
+   * {timeMs, lane}. The slide's lane is linearly interpolated between consecutive points.
+   */
+  path?: SlidePoint[];
+  /**
+   * Beat-subdivision color class (DDR-style note coloring), computed at build time from the
    * real beat grid: 0 = red (on-beat / 4th), 1 = blue (8th / off-beat), 2 = yellow (16th),
    * 3 = green (triplet). Absent is treated as 0.
    */
