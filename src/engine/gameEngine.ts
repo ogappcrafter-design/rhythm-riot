@@ -96,7 +96,7 @@ const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
 const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
-const SLIDE_GRACE_MS = 140; // how long you can be off a sustain's required lane before it breaks
+const SLIDE_GRACE_MS = 200; // how long you can be off a sustain's required lane before it breaks
 const DOT_SPRITE_SIZE = 128;
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
@@ -468,8 +468,8 @@ export class GameEngine {
     this.lastComboTier = 0;
     this.consecutiveMiss += 1;
     this.missFlash = 1;
-    // Unmistakable "you let go / wandered off the path" feedback — red flash + "NG!" (No Good).
-    this.spawnFloater('NG!', '#ff4d6a', true);
+    // Unmistakable "you let go / wandered off the path" feedback — red flash + "BAD".
+    this.spawnFloater('BAD', '#ff4d6a', true);
     sfx.play('miss');
   }
 
@@ -545,13 +545,22 @@ export class GameEngine {
         this.completeHold(n); // followed the path all the way through → O.K./CLEAR
         continue;
       }
-      // The lane you must be holding right now (moves along a slide's path).
-      const required = Math.round(this.laneAt(n, t));
-      if (this.lanePressed[required]) {
+      // Where the sustain sits right now (fractional along a slide's path). You're "on it" if any
+      // held lane is within ~0.7 of that — so a smooth drag counts even mid-transition and never
+      // false-breaks on a rounding boundary. A straight hold (integer path) still needs its lane.
+      const reqF = this.laneAt(n, t);
+      let onIt = false;
+      for (let l = 0; l < this.laneCount; l++) {
+        if (this.lanePressed[l] && Math.abs(l - reqF) <= 0.7) {
+          onIt = true;
+          break;
+        }
+      }
+      if (onIt) {
         n.graceMs = 0;
       } else {
         n.graceMs += dt;
-        if (n.graceMs > SLIDE_GRACE_MS) this.breakHold(n); // let go / wandered off → N.G.
+        if (n.graceMs > SLIDE_GRACE_MS) this.breakHold(n); // let go / wandered off → BAD
       }
     }
   }

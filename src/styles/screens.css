@@ -307,6 +307,7 @@
   padding: 8px 8px calc(10px + var(--safe-bottom));
   height: 26vh;
   min-height: 150px;
+  touch-action: none; /* let a finger DRAG across pads (slides) without the browser panning */
 }
 .lane-btn {
   position: relative;
