@@ -429,7 +429,9 @@ export class GameEngine {
       this.particles.emitBurst(x, this.receptorY, moodColorway(this.opts.palette, this.mood.moodNorm).glow, strength, this.opts.visualIntensity);
       this.laneFlash[n.lane] = 1;
     }
-    sfx.play(j);
+    // No per-hit tone on a successful note — those pitched ticks layer over and muddy the music.
+    // A miss still gets its (non-musical) thud so mistakes are still audible.
+    if (j === 'miss') sfx.play('miss');
     if (this.opts.hapticsEnabled && j === 'perfect') {
       const nav = navigator as Navigator & { vibrate?: (p: number) => boolean };
       if (typeof nav.vibrate === 'function') {
@@ -455,7 +457,7 @@ export class GameEngine {
     this.particles.emitBurst(x, this.receptorY, moodColorway(this.opts.palette, this.mood.moodNorm).glow, 1, this.opts.visualIntensity);
     this.laneFlash[endLane] = 1;
     this.spawnFloater(n.isSlide ? 'CLEAR!' : 'O.K.!', '#8effc0', true);
-    sfx.play('great');
+    // Completing a freeze/slide is celebrated visually (burst + CLEAR!) — no pitched tone over the music.
   }
 
   private breakHold(n: RuntimeNote): void {
