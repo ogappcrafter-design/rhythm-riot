@@ -119,16 +119,6 @@ const NOTE_COLORS: RGB[] = [
 const FREEZE_BODY: RGB = [86, 235, 132]; // freeze (hold) bodies — green when held
 const FREEZE_FAIL: RGB = [255, 60, 80]; // freeze turns red when you drop it
 
-// Facet colors sprinkled across the disco-ball notes for the prismatic look.
-const PRISM: RGB[] = [
-  [255, 90, 140],
-  [255, 200, 90],
-  [120, 255, 170],
-  [90, 210, 255],
-  [190, 130, 255],
-  [255, 120, 220],
-];
-
 // Bright hues cycled through notes once the player passes a 100 combo.
 const RAINBOW: RGB[] = [
   [255, 96, 128],
@@ -173,6 +163,7 @@ export class GameEngine {
 
   private flowStars: FlowStar[] = [];
   private dotSprites = new Map<number, HTMLCanvasElement>();
+  private swirlSprites = new Map<number, HTMLCanvasElement>();
 
   private raf = 0;
   private running = false;
@@ -246,6 +237,7 @@ export class GameEngine {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.particles.resize(this.w, this.h);
     this.dotSprites.clear();
+    this.swirlSprites.clear();
     this.initFlow();
   }
 
@@ -288,6 +280,7 @@ export class GameEngine {
     this.running = false;
     cancelAnimationFrame(this.raf);
     this.dotSprites.clear();
+    this.swirlSprites.clear();
   }
 
   // ---- geometry -------------------------------------------------------
@@ -615,9 +608,10 @@ export class GameEngine {
     }
   }
 
-  // ---- disco-ball dot sprite cache -----------------------------------
-  /** A 3D round glowing note: a faceted mirror-ball with prismatic tiles and a colored halo. */
-  private getDotSprite(key: number, color: RGB): HTMLCanvasElement {
+  // ---- glowing 3D orb sprite cache -----------------------------------
+  /** A smooth luminous 3D orb (glass sphere with an inner glow) in the beat color. The swirling
+   *  flow inside is a separate sprite (getSwirlSprite) blitted rotating on top each frame. */
+  private getOrbSprite(key: number, color: RGB): HTMLCanvasElement {
     const cached = this.dotSprites.get(key);
     if (cached) return cached;
     const S = DOT_SPRITE_SIZE;
@@ -628,80 +622,121 @@ export class GameEngine {
     const cx = S / 2;
     const cy = S / 2;
     const R = S * 0.34;
+    const bright = lightenRGB(color, 0.75);
+    const deep = darkenRGB(color, 0.55);
 
-    // Outer glow halo in the beat-color (keeps the color coding legible).
+    // 1) Outer glow halo.
     c.save();
-    c.shadowColor = rgbCss(lightenRGB(color, 0.25), 1);
-    c.shadowBlur = S * 0.3;
-    c.fillStyle = rgbCss(color, 0.9);
+    c.shadowColor = rgbCss(bright, 1);
+    c.shadowBlur = S * 0.32;
+    c.fillStyle = rgbCss(color, 0.85);
     c.beginPath();
-    c.arc(cx, cy, R * 0.94, 0, Math.PI * 2);
+    c.arc(cx, cy, R * 0.9, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
-    // Sphere body — clipped to the ball.
+    // 2) Luminous sphere body — bright core (offset up-left) fading to a deep rim = 3D + inner glow.
     c.save();
     c.beginPath();
     c.arc(cx, cy, R, 0, Math.PI * 2);
     c.clip();
-    const bg = c.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R * 1.15);
-    bg.addColorStop(0, '#3c4256');
-    bg.addColorStop(1, '#080a14');
-    c.fillStyle = bg;
+    const g = c.createRadialGradient(cx - R * 0.28, cy - R * 0.32, R * 0.08, cx, cy, R * 1.05);
+    g.addColorStop(0, rgbCss(lightenRGB(color, 0.9), 1));
+    g.addColorStop(0.35, rgbCss(bright, 1));
+    g.addColorStop(0.7, rgbCss(color, 1));
+    g.addColorStop(1, rgbCss(deep, 1));
+    c.fillStyle = g;
     c.fillRect(cx - R, cy - R, R * 2, R * 2);
 
-    // Mirror-ball facet tiles with sphere shading + prismatic sparkle.
-    const tile = R * 0.32;
-    const Lx = -0.5;
-    const Ly = -0.62;
-    const Lz = 0.6;
-    for (let gy = -R; gy < R; gy += tile) {
-      for (let gx = -R; gx < R; gx += tile) {
-        const px = (gx + tile * 0.5) / R;
-        const py = (gy + tile * 0.5) / R;
-        const r2 = px * px + py * py;
-        if (r2 > 1) continue;
-        const nz = Math.sqrt(1 - r2);
-        const diff = Math.max(0, px * Lx + py * Ly + nz * Lz);
-        const h = ((Math.floor(gx) * 73856093) ^ (Math.floor(gy) * 19349663) ^ (key * 83492791)) >>> 0;
-        const rnd = (h % 1000) / 1000;
-        let shade = 0.2 + 0.95 * diff + (rnd - 0.5) * 0.28;
-        shade = Math.max(0.05, Math.min(1.15, shade));
-        let base: RGB = [214, 221, 236];
-        if (rnd < 0.36) {
-          const pc = PRISM[h % PRISM.length];
-          base = [pc[0] * 0.6 + 120, pc[1] * 0.6 + 120, pc[2] * 0.6 + 120];
-        }
-        c.fillStyle = `rgb(${Math.min(255, base[0] * shade) | 0},${Math.min(255, base[1] * shade) | 0},${Math.min(255, base[2] * shade) | 0})`;
-        c.fillRect(cx + gx + 1, cy + gy + 1, tile - 1.6, tile - 1.6);
-        if (diff > 0.82 && rnd > 0.55) {
-          c.fillStyle = 'rgba(255,255,255,0.85)';
-          c.fillRect(cx + gx + tile * 0.3, cy + gy + tile * 0.3, tile * 0.4, tile * 0.4);
-        }
-      }
-    }
-
-    // Big soft specular highlight (top-left) for the glassy 3D pop.
-    const hl = c.createRadialGradient(cx - R * 0.4, cy - R * 0.45, 0, cx - R * 0.4, cy - R * 0.45, R * 0.75);
-    hl.addColorStop(0, 'rgba(255,255,255,0.8)');
-    hl.addColorStop(1, 'rgba(255,255,255,0)');
-    c.fillStyle = hl;
-    c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    // 3) Rim light along the lower-right edge (glassy sphere).
+    c.strokeStyle = rgbCss(lightenRGB(color, 0.6), 0.5);
+    c.lineWidth = S * 0.03;
+    c.beginPath();
+    c.arc(cx, cy, R * 0.94, Math.PI * 0.05, Math.PI * 0.95);
+    c.stroke();
     c.restore();
 
-    // Colored rim ring (beat-color identity) + a thin dark edge for contrast.
-    c.strokeStyle = rgbCss(lightenRGB(color, 0.45), 0.95);
-    c.lineWidth = S * 0.022;
+    // 4) Soft specular hotspot, top-left, for the glossy pop.
+    const hl = c.createRadialGradient(cx - R * 0.38, cy - R * 0.42, 0, cx - R * 0.38, cy - R * 0.42, R * 0.6);
+    hl.addColorStop(0, 'rgba(255,255,255,0.9)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = hl;
     c.beginPath();
-    c.arc(cx, cy, R, 0, Math.PI * 2);
-    c.stroke();
-    c.strokeStyle = 'rgba(0,0,0,0.4)';
-    c.lineWidth = S * 0.018;
+    c.arc(cx - R * 0.34, cy - R * 0.36, R * 0.42, 0, Math.PI * 2);
+    c.fill();
+
+    // 5) Thin dark edge so it reads cleanly on bright lanes.
+    c.strokeStyle = 'rgba(0,0,0,0.28)';
+    c.lineWidth = S * 0.016;
     c.beginPath();
-    c.arc(cx, cy, R + S * 0.014, 0, Math.PI * 2);
+    c.arc(cx, cy, R + S * 0.006, 0, Math.PI * 2);
     c.stroke();
 
     this.dotSprites.set(key, cv);
+    return cv;
+  }
+
+  /** The swirling energy inside the orb: soft luminous arms spiralling out from a bright core, on a
+   *  transparent disc. Blitted with 'lighter' and rotated over time so the flow appears to churn. */
+  private getSwirlSprite(key: number, color: RGB): HTMLCanvasElement {
+    const cached = this.swirlSprites.get(key);
+    if (cached) return cached;
+    const S = DOT_SPRITE_SIZE;
+    const cv = document.createElement('canvas');
+    cv.width = S;
+    cv.height = S;
+    const c = cv.getContext('2d')!;
+    const cx = S / 2;
+    const cy = S / 2;
+    const R = S * 0.32;
+    const wisp = lightenRGB(color, 0.55);
+    c.lineCap = 'round';
+
+    // Fade everything toward the rim so the swirl stays inside the glass.
+    c.save();
+    c.beginPath();
+    c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.clip();
+
+    // 3 spiral arms.
+    const arms = 3;
+    for (let a = 0; a < arms; a++) {
+      const a0 = (a / arms) * Math.PI * 2 + (key % 3) * 0.4;
+      c.beginPath();
+      const steps = 22;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const rad = R * (0.12 + 0.82 * t);
+        const ang = a0 + t * 2.4; // ~140° of curl
+        const x = cx + Math.cos(ang) * rad;
+        const y = cy + Math.sin(ang) * rad;
+        if (i === 0) c.moveTo(x, y);
+        else c.lineTo(x, y);
+      }
+      c.shadowColor = rgbCss(wisp, 1);
+      c.shadowBlur = S * 0.06;
+      // wide soft base
+      c.strokeStyle = rgbCss(wisp, 0.28);
+      c.lineWidth = S * 0.06;
+      c.stroke();
+      // bright thin core
+      c.strokeStyle = rgbCss(lightenRGB(color, 0.85), 0.6);
+      c.lineWidth = S * 0.022;
+      c.stroke();
+    }
+
+    // Bright luminous core.
+    const core = c.createRadialGradient(cx, cy, 0, cx, cy, R * 0.4);
+    core.addColorStop(0, 'rgba(255,255,255,0.85)');
+    core.addColorStop(0.5, rgbCss(lightenRGB(color, 0.7), 0.5));
+    core.addColorStop(1, rgbCss(color, 0));
+    c.fillStyle = core;
+    c.beginPath();
+    c.arc(cx, cy, R * 0.4, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+
+    this.swirlSprites.set(key, cv);
     return cv;
   }
 
@@ -889,7 +924,7 @@ export class GameEngine {
       ctx.restore();
     }
 
-    // Round disco-ball note heads (rising up the lanes).
+    // Glowing 3D orb note heads (rising up the lanes), with the energy swirling inside.
     for (const n of this.notes) {
       if (n.judged && !n.holdActive) continue;
       if (n.holdActive) {
@@ -897,8 +932,7 @@ export class GameEngine {
         // the lane you must currently be on, showing you where to drag.
         const beat = 1 + 0.06 * Math.sin(songMs / 90);
         const followLane = n.isSlide ? this.laneAt(n, tapMs) : n.lane;
-        const sprite = this.getDotSprite(keyFor(n), colorFor(n));
-        this.blitDot(sprite, this.laneCenterX(followLane), this.receptorY, noteSize * 1.06 * beat, 1);
+        this.drawOrb(keyFor(n), colorFor(n), this.laneCenterX(followLane), this.receptorY, noteSize * 1.06 * beat, 1, songMs, n.timeMs);
         continue;
       }
       const delta = n.timeMs - tapMs;
@@ -907,15 +941,26 @@ export class GameEngine {
       const y = this.yFor(p);
       const x = this.laneCenterX(n.lane);
       const alpha = Math.min(1, p * 6); // fade in as it appears at the bottom
-      const sprite = this.getDotSprite(keyFor(n), colorFor(n));
-      this.blitDot(sprite, x, y, noteSize, alpha);
+      this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize, alpha, songMs, n.timeMs);
     }
   }
 
-  private blitDot(sprite: HTMLCanvasElement, x: number, y: number, size: number, alpha: number): void {
+  /** Draw a glowing orb plus its swirling inner flow (rotated over time) at (x,y). */
+  private drawOrb(key: number, color: RGB, x: number, y: number, size: number, alpha: number, songMs: number, phase: number): void {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
-    ctx.drawImage(sprite, x - size / 2, y - size / 2, size, size);
+    ctx.drawImage(this.getOrbSprite(key, color), x - size / 2, y - size / 2, size, size);
+    // Swirling energy — rotated by time (+ a per-note phase) and blended additively so it reads as
+    // luminous flow churning inside the glass.
+    const swirl = this.getSwirlSprite(key, color);
+    const s = size * 0.9;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.translate(x, y);
+    ctx.rotate((songMs * 0.0013 + phase * 0.0011) % (Math.PI * 2));
+    ctx.drawImage(swirl, -s / 2, -s / 2, s, s);
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
 
