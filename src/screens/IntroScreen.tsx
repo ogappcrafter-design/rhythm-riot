@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/appContext';
 import { markIntroSeen } from '../state/storage';
 import { WordArt } from '../components/WordArt';
-import { AuroraBackground } from '../components/AuroraBackground';
 import { IconRiotShard } from '../components/icons';
 import { sfx } from '../audio/sfx';
 
@@ -59,7 +58,6 @@ export function IntroScreen() {
 
   return (
     <div className={`intro ${phase}`} onPointerDown={onTap}>
-      <AuroraBackground shards={6} />
       <div className="intro-bg" />
       <div className="intro-orbs" aria-hidden>
         {INTRO_ORBS.map((o, i) => (

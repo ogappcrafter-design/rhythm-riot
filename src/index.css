@@ -91,12 +91,12 @@ body {
   flex-direction: column;
   padding: calc(18px + var(--safe-top)) 16px calc(18px + var(--safe-bottom));
   overflow-y: auto;
-  animation: screen-in 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: screen-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.99);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
