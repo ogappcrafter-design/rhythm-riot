@@ -1,6 +1,7 @@
 import { useApp } from '../state/appContext';
 import { WordArt } from '../components/WordArt';
 import { IconChart, IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
+import { TRACKS } from '../data/tracks';
 import { sfx } from '../audio/sfx';
 
 /** Home / Main Menu (spec 8.1). Play, Song Select, Settings, Help. */
@@ -50,7 +51,7 @@ export function MainMenu() {
         </button>
       </div>
 
-      <div className="faint" style={{ marginTop: 10 }}>v1 · 5 tracks · drive the Mood Meter</div>
+      <div className="faint" style={{ marginTop: 10 }}>v1 · {TRACKS.length} tracks · drive the Mood Meter</div>
     </div>
   );
 }

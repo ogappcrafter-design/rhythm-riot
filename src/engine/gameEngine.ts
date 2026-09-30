@@ -97,7 +97,7 @@ const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
 const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
 const SLIDE_GRACE_MS = 200; // how long you can be off a sustain's required lane before it breaks
-const DOT_SPRITE_SIZE = 128;
+const DOT_SPRITE_SIZE = 256; // high-res note sprites so orbs stay crisp scaled up on dense screens
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
 const JUDGE_LABEL: Record<Judgement, string> = { perfect: 'PERFECT', great: 'GREAT', good: 'GOOD', miss: 'MISS' };
@@ -229,12 +229,16 @@ export class GameEngine {
   resize(): void {
     const { canvas } = this.opts;
     const rect = canvas.getBoundingClientRect();
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    // Render at the device's native pixel density (up to 3×) so lanes, rings, text and orbs are
+    // razor-sharp on high-DPI phones instead of upscaled.
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.w = Math.max(1, rect.width);
     this.h = Math.max(1, rect.height);
     canvas.width = Math.round(this.w * this.dpr);
     canvas.height = Math.round(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high'; // crisp, clean sprite scaling
     this.particles.resize(this.w, this.h);
     this.dotSprites.clear();
     this.swirlSprites.clear();
