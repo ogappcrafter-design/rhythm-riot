@@ -16,6 +16,8 @@ export interface TrackMeta {
   tagline: string;
   bpm: number;
   durationSec: number;
+  /** Shows a small "EXPLICIT" content warning on the song card. */
+  explicit?: boolean;
 }
 
 /** Ordered easiest → hardest, matching the spec's recommended progression. */
@@ -28,6 +30,7 @@ export const TRACKS: TrackMeta[] = [
     tagline: 'Steady groove · easy in',
     bpm: 103.4,
     durationSec: 173.08,
+    explicit: true,
   },
   {
     id: 'where_the_inside_opens_wide',
