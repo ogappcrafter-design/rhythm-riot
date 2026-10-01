@@ -951,3 +951,83 @@
   font-size: 10px;
   font-weight: 900;
 }
+
+/* ---- hands-on trial ---- */
+.try-dots { display: flex; gap: 8px; justify-content: center; margin: 6px 0 2px; }
+.try-dots span {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18); transition: all 0.2s ease;
+}
+.try-dots span.on { background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 10px rgba(124, 92, 255, 0.6); }
+.try-dots span.done { background: #46e86e; }
+
+.try-stage {
+  position: relative;
+  width: min(360px, 86vw);
+  margin-top: 14px;
+  padding: 16px 14px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(10, 12, 30, 0.55), rgba(5, 6, 15, 0.55));
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.4);
+}
+.try-instr {
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  min-height: 22px;
+  margin-bottom: 14px;
+}
+.try-stage .try-instr:empty::before { content: '\00a0'; }
+.try-arrow {
+  position: absolute;
+  top: 54px; left: 0; right: 0;
+  text-align: center;
+  font-size: 30px; font-weight: 900; color: rgba(255, 209, 160, 0.9);
+  animation: blink 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.try-pads {
+  display: flex;
+  gap: 10px;
+  height: 120px;
+  touch-action: none;
+}
+.try-pad {
+  position: relative;
+  flex: 1;
+  border-radius: 14px 14px 18px 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--glass-border);
+  border-bottom: 3px solid rgba(124, 92, 255, 0.5);
+  overflow: hidden;
+  transition: background 0.08s ease, box-shadow 0.08s ease, transform 0.06s ease;
+}
+.try-pad.target {
+  border-color: rgba(142, 240, 255, 0.7);
+  box-shadow: 0 0 20px rgba(124, 92, 255, 0.45), inset 0 0 26px rgba(124, 92, 255, 0.25);
+  animation: try-target 1.1s ease-in-out infinite;
+}
+@keyframes try-target {
+  0%, 100% { box-shadow: 0 0 14px rgba(124, 92, 255, 0.35), inset 0 0 20px rgba(124, 92, 255, 0.2); }
+  50% { box-shadow: 0 0 28px rgba(124, 92, 255, 0.7), inset 0 0 30px rgba(124, 92, 255, 0.35); }
+}
+.try-pad.start::after { content: 'START'; position: absolute; top: 8px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: rgba(255, 209, 160, 0.9); }
+.try-pad.end::after { content: 'END'; position: absolute; top: 8px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: rgba(255, 209, 160, 0.9); }
+.try-pad.on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(124, 92, 255, 0.35));
+  box-shadow: inset 0 0 40px rgba(124, 92, 255, 0.6), 0 0 26px rgba(124, 92, 255, 0.6);
+  transform: translateY(2px) scale(0.985);
+}
+.try-holdring { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(0deg, rgba(110, 235, 140, 0.6), rgba(110, 235, 140, 0.15)); }
+.try-holdring.filling { animation: try-fill 0.95s linear forwards; }
+@keyframes try-fill { from { height: 0; } to { height: 100%; } }
+
+/* ---- volume warning ---- */
+.vol-icon { filter: drop-shadow(0 0 22px rgba(124, 92, 255, 0.6)); animation: float 3.6s ease-in-out infinite; }
+.vwave { opacity: 0; transform-origin: 32px 32px; }
+.vw1 { animation: vwave 1.6s ease-in-out infinite; }
+.vw2 { animation: vwave 1.6s ease-in-out 0.25s infinite; }
+@keyframes vwave { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
