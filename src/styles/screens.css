@@ -746,3 +746,175 @@
 .diff-chip-tag { font-weight: 900; font-style: italic; font-size: 13px; }
 .diff-chip-grade { font-weight: 900; font-size: 14px; }
 .diff-chip-stars { color: #ffd76a; font-size: 10px; letter-spacing: -1px; }
+
+/* ========================= TUTORIAL ========================== */
+.tut-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+}
+.tut-text {
+  color: var(--ink-dim);
+  font-size: 15px;
+  line-height: 1.55;
+  text-align: center;
+  max-width: min(400px, 88vw);
+  margin: 10px 0 0;
+}
+.tut-dots { display: flex; gap: 8px; justify-content: center; }
+.tut-dots span {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+.tut-dots span.on {
+  width: 22px; border-radius: 5px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+/* Reusable glowing swirl orb (matches the in-game notes). */
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 26px 3px var(--og), inset 0 0 14px rgba(255, 255, 255, 0.28);
+}
+.glow-orb::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background: conic-gradient(from 0deg, var(--c1), var(--c2), var(--c1));
+  animation: orbspin 4.5s linear infinite;
+}
+.glow-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.92), transparent 40%),
+    radial-gradient(circle at 50% 50%, transparent 52%, rgba(4, 4, 14, 0.5) 100%);
+}
+
+.tut-stage {
+  position: relative;
+  width: min(360px, 84vw);
+  height: 220px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(10, 12, 30, 0.55), rgba(5, 6, 15, 0.55));
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
+}
+.tut-ring {
+  position: absolute;
+  top: 34px;
+  width: 52px; height: 52px; margin-left: -26px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 16px rgba(124, 92, 255, 0.4);
+}
+.tut-orb { width: 42px; height: 42px; }
+.tut-finger {
+  position: absolute;
+  width: 34px; height: 34px; margin-left: -17px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.06) 70%);
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* TAP */
+.tut-orb-tap { left: 50%; margin-left: -21px; top: 180px; animation: tut-tap 2.4s ease-in infinite; }
+@keyframes tut-tap {
+  0% { top: 180px; opacity: 0; }
+  12% { opacity: 1; }
+  56% { top: 39px; opacity: 1; }
+  62% { top: 39px; opacity: 0; }
+  100% { top: 39px; opacity: 0; }
+}
+.tut-pop {
+  position: absolute; top: 34px; width: 52px; height: 52px; margin-left: -26px;
+  border-radius: 50%; border: 3px solid rgba(142, 240, 255, 0.9);
+  opacity: 0; animation: tut-pop 2.4s ease-out infinite;
+}
+@keyframes tut-pop {
+  0%, 54% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1); opacity: 0.9; }
+  78% { transform: scale(1.9); opacity: 0; }
+  100% { opacity: 0; }
+}
+.tut-pad {
+  position: absolute; bottom: 14px; width: 60px; height: 26px; margin-left: -30px;
+  border-radius: 10px; background: rgba(124, 92, 255, 0.12); border: 1px solid rgba(124, 92, 255, 0.4);
+  animation: tut-padflash 2.4s ease infinite;
+}
+@keyframes tut-padflash {
+  0%, 54% { background: rgba(124, 92, 255, 0.12); box-shadow: none; }
+  60% { background: rgba(124, 92, 255, 0.5); box-shadow: 0 0 16px rgba(124, 92, 255, 0.6); }
+  82%, 100% { background: rgba(124, 92, 255, 0.12); box-shadow: none; }
+}
+
+/* HOLD */
+.tut-bar-hold {
+  position: absolute; top: 60px; width: 20px; margin-left: -10px; border-radius: 10px;
+  background: linear-gradient(180deg, rgba(110, 235, 140, 0.95), rgba(70, 200, 110, 0.5));
+  box-shadow: 0 0 16px rgba(110, 235, 140, 0.5);
+  transform-origin: top; animation: tut-holdbar 2.4s ease-in-out infinite;
+}
+@keyframes tut-holdbar { 0% { height: 130px; } 78% { height: 0; } 100% { height: 0; } }
+.tut-orb-hold { left: 50%; margin-left: -21px; top: 39px; }
+.tut-finger-hold { left: 50%; top: 43px; animation: tut-press 1s ease-in-out infinite; }
+@keyframes tut-press { 0%, 100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(0.82); opacity: 1; } }
+
+/* SLIDE */
+.tut-trail {
+  position: absolute; left: 26%; top: 72px; width: 48%; height: 9px;
+  background: linear-gradient(90deg, rgba(255, 154, 60, 0.85), rgba(255, 120, 80, 0.45));
+  border-radius: 6px; transform: rotate(10deg); transform-origin: left center;
+  box-shadow: 0 0 14px rgba(255, 140, 80, 0.45);
+}
+.tut-orb-slidehead { margin-left: -21px; margin-top: -21px; animation: tut-slide 2.8s ease-in-out infinite; }
+.tut-finger-slide { margin-left: -17px; margin-top: -17px; animation: tut-slide 2.8s ease-in-out infinite; }
+@keyframes tut-slide {
+  0%, 10% { left: 26%; top: 76px; }
+  66% { left: 74%; top: 118px; }
+  80% { left: 74%; top: 118px; }
+  86% { left: 74%; top: 118px; opacity: 0; }
+  87% { left: 26%; top: 76px; opacity: 0; }
+  100% { left: 26%; top: 76px; opacity: 1; }
+}
+.tut-drag {
+  position: absolute; bottom: 16px; left: 0; right: 0; text-align: center;
+  color: #ffd1a0; font-weight: 800; letter-spacing: 0.14em; font-size: 13px;
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+/* GROOVE */
+.tut-groove-label {
+  position: absolute; top: 44px; left: 0; right: 0; text-align: center;
+  color: #ffd27a; font-weight: 800; letter-spacing: 0.2em; font-size: 13px;
+}
+.tut-groove-bar {
+  position: absolute; left: 36px; right: 36px; top: 92px; height: 16px;
+  border-radius: 10px; background: rgba(255, 255, 255, 0.1); overflow: hidden;
+}
+.tut-groove-fill {
+  display: block; height: 100%; border-radius: 10px; width: 28%;
+  background: linear-gradient(90deg, #ff8a3c, #ffd23b);
+  box-shadow: 0 0 12px rgba(255, 180, 60, 0.5);
+  animation: tut-groove 3s ease-in-out infinite;
+}
+@keyframes tut-groove { 0% { width: 28%; } 60% { width: 92%; } 80% { width: 70%; } 100% { width: 28%; } }
+.tut-orb-groove { left: 50%; margin-left: -21px; top: 140px; animation: tut-bounce 1.1s ease-in-out infinite; }
+@keyframes tut-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-orb-tap, .tut-pop, .tut-pad, .tut-bar-hold, .tut-finger-hold,
+  .tut-orb-slidehead, .tut-finger-slide, .tut-groove-fill, .tut-orb-groove,
+  .glow-orb::before { animation: none; }
+}

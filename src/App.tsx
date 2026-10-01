@@ -7,6 +7,7 @@ import { GameplayScreen } from './screens/GameplayScreen';
 import { ResultsScreen } from './screens/ResultsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { HelpScreen } from './screens/HelpScreen';
+import { TutorialScreen } from './screens/TutorialScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { AuroraBackground } from './components/AuroraBackground';
@@ -48,6 +49,8 @@ export function App() {
         return <SettingsScreen />;
       case 'help':
         return <HelpScreen />;
+      case 'tutorial':
+        return <TutorialScreen />;
       case 'profile':
         return <ProfileScreen />;
       case 'calibration':

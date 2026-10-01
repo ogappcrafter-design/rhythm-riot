@@ -25,6 +25,7 @@ function PadTarget() {
 type Phase = 'loading' | 'error' | 'countdown' | 'playing' | 'paused';
 
 const KEY_MAP = ['d', 'f', 'j', 'k', 'l'];
+const KB_PTR_BASE = 100000; // synthetic pointer ids for keyboard keys (one per lane)
 
 export function GameplayScreen({ trackId, difficulty }: { trackId: string; difficulty: Difficulty }) {
   const { navigate, settings } = useApp();
@@ -207,14 +208,16 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
         e.preventDefault();
         if (keyDownRef.current.has(idx)) return; // ignore auto-repeat
         keyDownRef.current.add(idx);
-        pressLane(idx);
+        engineRef.current?.pointerDown(KB_PTR_BASE + idx, idx);
+        setPadActive(idx, true);
       }
     };
     const onUp = (e: KeyboardEvent) => {
       const idx = KEY_MAP.indexOf(e.key.toLowerCase());
       if (idx >= 0 && idx < laneCount) {
         keyDownRef.current.delete(idx);
-        releaseLane(idx);
+        engineRef.current?.pointerUp(KB_PTR_BASE + idx);
+        setPadActive(idx, false);
       }
     };
     window.addEventListener('keydown', onDown);
@@ -239,38 +242,29 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     const el = laneElsRef.current[lane];
     if (el) el.classList.toggle('active', on);
   };
-  const pressLane = (lane: number) => {
-    engineRef.current?.pressLane(lane);
-    setPadActive(lane, true);
-  };
-  const releaseLane = (lane: number) => {
-    engineRef.current?.releaseLane(lane);
-    setPadActive(lane, false);
-  };
-
-  // ---- position-based pad input (supports multi-touch taps AND single-finger drags across
-  //      lanes, which slide notes require). A lane is "down" while any pointer sits over it. ----
+  // ---- per-finger pad input: each finger is tracked by id, so a single finger can be pressed on
+  //      the start orb and DRAGGED across lanes to follow a slide (and lifting mid-slide fails). ---
   const ensureCounts = () => {
     if (laneCountsRef.current.length !== laneCount) laneCountsRef.current = new Array(laneCount).fill(0);
     return laneCountsRef.current;
+  };
+  const padVisualDown = (lane: number) => {
+    const c = ensureCounts();
+    if (c[lane] === 0) setPadActive(lane, true);
+    c[lane] += 1;
+  };
+  const padVisualUp = (lane: number) => {
+    const c = ensureCounts();
+    if (c[lane] > 0) {
+      c[lane] -= 1;
+      if (c[lane] === 0) setPadActive(lane, false);
+    }
   };
   const laneFromClientX = (clientX: number) => {
     const el = laneControlsRef.current;
     if (!el) return -1;
     const r = el.getBoundingClientRect();
     return Math.max(0, Math.min(laneCount - 1, Math.floor((clientX - r.left) / (r.width / laneCount))));
-  };
-  const laneDown = (lane: number) => {
-    const c = ensureCounts();
-    if (c[lane] === 0) pressLane(lane);
-    c[lane] += 1;
-  };
-  const laneUp = (lane: number) => {
-    const c = ensureCounts();
-    if (c[lane] > 0) {
-      c[lane] -= 1;
-      if (c[lane] === 0) releaseLane(lane);
-    }
   };
   const onPadDown = (e: React.PointerEvent) => {
     if (phase !== 'playing') return;
@@ -279,7 +273,8 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     const lane = laneFromClientX(e.clientX);
     if (lane < 0) return;
     pointerLaneRef.current.set(e.pointerId, lane);
-    laneDown(lane);
+    engineRef.current?.pointerDown(e.pointerId, lane);
+    padVisualDown(lane);
   };
   const onPadMove = (e: React.PointerEvent) => {
     const map = pointerLaneRef.current;
@@ -287,8 +282,9 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     const lane = laneFromClientX(e.clientX);
     const prev = map.get(e.pointerId)!;
     if (lane !== prev && lane >= 0) {
-      laneUp(prev);
-      laneDown(lane);
+      engineRef.current?.pointerMove(e.pointerId, lane); // drag → follow the slide's moving point
+      padVisualUp(prev);
+      padVisualDown(lane);
       map.set(e.pointerId, lane);
     }
   };
@@ -296,7 +292,8 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     const map = pointerLaneRef.current;
     const prev = map.get(e.pointerId);
     if (prev !== undefined) {
-      laneUp(prev);
+      engineRef.current?.pointerUp(e.pointerId); // lifting resolves/fails any slide this finger held
+      padVisualUp(prev);
       map.delete(e.pointerId);
     }
   };

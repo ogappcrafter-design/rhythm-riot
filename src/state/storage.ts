@@ -79,6 +79,7 @@ export interface SaveData {
   lifetime: LifetimeStats;
   introSeen: boolean;
   calibrationDone: boolean;
+  tutorialSeen: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -97,6 +98,7 @@ function defaultSave(): SaveData {
     lifetime: { ...EMPTY_LIFETIME },
     introSeen: false,
     calibrationDone: false,
+    tutorialSeen: false,
   };
 }
 
@@ -259,5 +261,14 @@ export function markIntroSeen(): void {
 
 export function markCalibrationDone(): void {
   loadSave().calibrationDone = true;
+  persist();
+}
+
+export function isTutorialSeen(): boolean {
+  return loadSave().tutorialSeen;
+}
+
+export function markTutorialSeen(): void {
+  loadSave().tutorialSeen = true;
   persist();
 }

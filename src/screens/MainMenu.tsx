@@ -41,7 +41,7 @@ export function MainMenu() {
             <IconSettings size={20} /> Settings
           </span>
         </button>
-        <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'help' })}>
+        <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'tutorial' })}>
           <span className="row" style={{ justifyContent: 'center', gap: 10 }}>
             <IconHelp size={20} /> How to Play
           </span>

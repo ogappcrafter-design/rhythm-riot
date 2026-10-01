@@ -13,6 +13,7 @@ export type Route =
   | { name: 'results'; result: RunResult; isNewRecord: boolean; expertJustUnlocked: boolean }
   | { name: 'settings' }
   | { name: 'help' }
+  | { name: 'tutorial' }
   | { name: 'profile' }
   | { name: 'calibration' };
 

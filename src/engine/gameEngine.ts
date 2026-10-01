@@ -72,6 +72,8 @@ interface RuntimeNote {
   holdBroken: boolean;
   holdBrokenAt: number; // perf time the freeze was dropped (for the red-fail flash)
   graceMs: number; // how long the required lane hasn't been held (slides/holds break past a grace)
+  ownerPtr: number; // the specific finger/pointer holding this sustain (-1 = none)
+  ownerLane: number; // that finger's current lane — must track the moving point to keep the slide
 }
 
 interface FloatingJudge {
@@ -96,7 +98,9 @@ const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
 const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
-const SLIDE_GRACE_MS = 200; // how long you can be off a sustain's required lane before it breaks
+const SLIDE_GRACE_MS = 200; // how long the tracking finger can be off the path before it breaks
+const SLIDE_TOL = 0.6; // how far (in lanes) the tracking finger may be from the moving point
+const HOLD_RELEASE_WINDOW = 140; // lifting within this of the end still completes the sustain
 const DOT_SPRITE_SIZE = 256; // high-res note sprites so orbs stay crisp scaled up on dense screens
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
@@ -159,6 +163,7 @@ export class GameEngine {
   private laneFlash: number[] = []; // pad-press / hit wash per lane
   private hitPop: number[] = []; // successful-hit step explosion per lane (decays 1→0)
   private lanePressed: boolean[] = [];
+  private pointers = new Map<number, number>(); // active fingers → the lane each is currently over
   private activeSustains: RuntimeNote[] = []; // holds + slides currently being held
 
   private flowStars: FlowStar[] = [];
@@ -221,6 +226,8 @@ export class GameEngine {
         holdBroken: false,
         holdBrokenAt: 0,
         graceMs: 0,
+        ownerPtr: -1,
+        ownerLane: -1,
       };
     });
     this.resize();
@@ -328,11 +335,21 @@ export class GameEngine {
     return last.lane;
   }
 
-  // ---- input ----------------------------------------------------------
-  pressLane(lane: number): void {
+  // ---- input (per-finger, so slides require a real drag) --------------
+  private syncPressed(): void {
+    this.lanePressed.fill(false);
+    for (const l of this.pointers.values()) {
+      if (l >= 0 && l < this.laneCount) this.lanePressed[l] = true;
+    }
+  }
+
+  /** A finger goes down on `lane`. Judges a tap/sustain-head there and, if it starts a sustain,
+   *  binds THIS finger as the one that must hold/drag it to the end. */
+  pointerDown(ptr: number, lane: number): void {
     if (!this.running || this.paused || this.finished) return;
     if (lane < 0 || lane >= this.laneCount) return;
-    this.lanePressed[lane] = true;
+    this.pointers.set(ptr, lane);
+    this.syncPressed();
     this.laneFlash[lane] = 1;
 
     const songMs = this.opts.clock.getPositionMs();
@@ -357,20 +374,41 @@ export class GameEngine {
     const j = judgeTiming(bestErr, win);
     this.judgeHead(n, j, bestErr);
     if (n.isHold && j !== 'miss') {
-      // Start tracking this sustain; updateSustains() keeps it alive while the required lane
-      // (which moves for a slide) stays held, and resolves it O.K./N.G.
+      // This finger now owns the sustain; updateSustains() keeps it alive only while THIS finger
+      // stays on the moving point (so a slide must be dragged, not two-finger-held).
       n.holdActive = true;
       n.graceMs = 0;
+      n.ownerPtr = ptr;
+      n.ownerLane = lane;
       if (!this.activeSustains.includes(n)) this.activeSustains.push(n);
     }
   }
 
-  releaseLane(lane: number): void {
+  /** A held finger moves to a new lane (dragging). Updates the lane of any sustain it owns. */
+  pointerMove(ptr: number, lane: number): void {
+    if (!this.pointers.has(ptr)) return;
     if (lane < 0 || lane >= this.laneCount) return;
-    this.lanePressed[lane] = false;
-    // Sustains are no longer resolved on release directly — updateSustains() watches lanePressed
-    // against each sustain's required (possibly moving) lane, so a slide survives finger moves and
-    // only fails after a short grace of not following the path.
+    this.pointers.set(ptr, lane);
+    this.syncPressed();
+    this.laneFlash[lane] = 1;
+    for (const n of this.activeSustains) {
+      if (n.ownerPtr === ptr) n.ownerLane = lane;
+    }
+  }
+
+  /** A finger lifts. Any sustain it owns resolves now — O.K. if it reached (near) the end, else
+   *  BAD (you let go before finishing the drag). */
+  pointerUp(ptr: number): void {
+    if (!this.pointers.has(ptr)) return;
+    this.pointers.delete(ptr);
+    this.syncPressed();
+    if (!this.running || this.paused || this.finished) return;
+    const t = this.opts.clock.getPositionMs() - this.opts.latencyOffsetMs;
+    for (const n of [...this.activeSustains]) {
+      if (n.ownerPtr !== ptr) continue;
+      if (t >= n.holdEndMs - HOLD_RELEASE_WINDOW) this.completeHold(n);
+      else this.breakHold(n);
+    }
   }
 
   private judgeHead(n: RuntimeNote, j: Judgement, err = Infinity): void {
@@ -443,6 +481,7 @@ export class GameEngine {
     if (n.holdDone || n.holdBroken) return;
     n.holdDone = true;
     n.holdActive = false;
+    n.ownerPtr = -1;
     this.activeSustains = this.activeSustains.filter((s) => s !== n);
     const bonus = 120 + Math.round((n.holdEndMs - n.timeMs) / 12);
     this.score += bonus;
@@ -459,6 +498,7 @@ export class GameEngine {
     if (n.holdDone || n.holdBroken) return;
     n.holdBroken = true;
     n.holdActive = false;
+    n.ownerPtr = -1;
     n.holdBrokenAt = performance.now();
     this.activeSustains = this.activeSustains.filter((s) => s !== n);
     this.combo = 0; // dropping a hold/slide breaks the streak
@@ -542,22 +582,19 @@ export class GameEngine {
         this.completeHold(n); // followed the path all the way through → O.K./CLEAR
         continue;
       }
-      // Where the sustain sits right now (fractional along a slide's path). You're "on it" if any
-      // held lane is within ~0.7 of that — so a smooth drag counts even mid-transition and never
-      // false-breaks on a rounding boundary. A straight hold (integer path) still needs its lane.
-      const reqF = this.laneAt(n, t);
-      let onIt = false;
-      for (let l = 0; l < this.laneCount; l++) {
-        if (this.lanePressed[l] && Math.abs(l - reqF) <= 0.7) {
-          onIt = true;
-          break;
-        }
+      // The OWNING finger must stay on the moving point: for a straight hold that's its lane; for a
+      // slide it's the point travelling across the lanes, so you must drag to follow it. If that
+      // finger lifted (shouldn't reach here — pointerUp resolves it) treat it as gone.
+      if (n.ownerPtr < 0 || !this.pointers.has(n.ownerPtr)) {
+        this.breakHold(n);
+        continue;
       }
-      if (onIt) {
+      const reqF = this.laneAt(n, t);
+      if (Math.abs(n.ownerLane - reqF) <= SLIDE_TOL) {
         n.graceMs = 0;
       } else {
         n.graceMs += dt;
-        if (n.graceMs > SLIDE_GRACE_MS) this.breakHold(n); // let go / wandered off → BAD
+        if (n.graceMs > SLIDE_GRACE_MS) this.breakHold(n); // drifted off the path → BAD
       }
     }
   }
