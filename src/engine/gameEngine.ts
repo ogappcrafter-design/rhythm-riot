@@ -1025,12 +1025,46 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // 5) Glowing horizon band where the road vanishes.
-    const hz = ctx.createLinearGradient(0, top, 0, top + h * 0.2);
-    hz.addColorStop(0, rgbCss(GREEN, 0.2 * pulse + comboGlow * 0.1));
-    hz.addColorStop(1, rgbCss(GREEN, 0));
-    ctx.fillStyle = hz;
-    ctx.fillRect(0, top, this.w, h * 0.2);
+    // 5) Lo-fi horizon: distance fog, a glowing "sun" on the vanishing point, a crisp horizon line,
+    //    and a reflection shimmering down the near floor — the "road into the sunset" read.
+    // Distance fog so the far floor dissolves into the horizon (depth).
+    const fog = ctx.createLinearGradient(0, top, 0, top + h * 0.3);
+    fog.addColorStop(0, rgbCss(GREEN, 0.16 * pulse + comboGlow * 0.06));
+    fog.addColorStop(1, rgbCss(GREEN, 0));
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, top, this.w, h * 0.3);
+
+    // Sun / horizon glow sitting on the vanishing point.
+    const sunR = this.laneW * 1.5;
+    const sun = ctx.createRadialGradient(cx, top, 0, cx, top, sunR);
+    sun.addColorStop(0, rgbCss([190, 255, 215], 0.55 * pulse + comboGlow * 0.25));
+    sun.addColorStop(0.4, rgbCss(GREEN, 0.3 * pulse + comboGlow * 0.12));
+    sun.addColorStop(1, rgbCss(GREEN, 0));
+    ctx.fillStyle = sun;
+    ctx.beginPath();
+    ctx.arc(cx, top, sunR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Reflection of the sun shimmering down the floor (narrow at the horizon, widening toward you).
+    const refl = ctx.createLinearGradient(0, top, 0, bot);
+    refl.addColorStop(0, rgbCss([170, 255, 205], 0.14 * pulse));
+    refl.addColorStop(1, rgbCss(GREEN, 0));
+    ctx.fillStyle = refl;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, top);
+    ctx.lineTo(cx + 3, top);
+    ctx.lineTo(cx + this.laneW * 0.7, bot);
+    ctx.lineTo(cx - this.laneW * 0.7, bot);
+    ctx.closePath();
+    ctx.fill();
+
+    // Bright horizon line.
+    ctx.strokeStyle = rgbCss([200, 255, 220], 0.5 * pulse + comboGlow * 0.2);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, top);
+    ctx.lineTo(this.w, top);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -1197,8 +1231,32 @@ export class GameEngine {
       const y = this.yFor(p);
       const x = this.laneCenterX(n.lane);
       const alpha = Math.min(1, p * 6); // fade in as it appears at the bottom
+      // Floor shadow so each note reads as FLOATING above the lo-fi road behind it.
+      this.drawNoteShadow(x, y, noteSize, alpha);
       this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize, alpha, songMs, n.timeMs, stars);
     }
+  }
+
+  /** A soft elliptical shadow cast below a note onto the road — the grounding cue that makes the
+   *  note (and the whole grid) read as floating above the lo-fi floor. */
+  private drawNoteShadow(x: number, y: number, size: number, alpha: number): void {
+    const ctx = this.ctx;
+    const sy = y + size * 0.62;
+    const rw = size * 0.44;
+    const rh = size * 0.16;
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.translate(x, sy);
+    ctx.scale(1, rh / rw);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rw);
+    g.addColorStop(0, `rgba(0,0,0,${0.5 * alpha})`);
+    g.addColorStop(0.6, `rgba(0,0,0,${0.28 * alpha})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, rw, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   /** Draw a glowing note head plus its swirling inner flow (rotated over time) at (x,y). When
