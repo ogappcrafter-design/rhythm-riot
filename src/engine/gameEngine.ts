@@ -941,13 +941,15 @@ export class GameEngine {
     const RAIN: RGB = [150, 255, 180];
     const pulse = 0.6 + beatPulse * 0.4;
     // Outermost rail offset from center (rails fan out past the lane edges at the near plane).
-    const fOuter = this.laneW * (this.laneCount / 2 + 2);
-    const depthX = (f: number, sf: number) => cx + f * (0.02 + 0.98 * sf); // x of a rail at depth sf
+    const fOuter = this.laneW * (this.laneCount / 2 + 3); // wider near plane = more head-on road
+    const depthX = (f: number, sf: number) => cx + f * (0.012 + 0.988 * sf); // tighter vanishing point
 
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, top, this.w, h);
     ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
     // 1) Black floor — darkest at the horizon so the grid recedes into black.
     const floor = ctx.createLinearGradient(0, top, 0, bot);
@@ -961,49 +963,62 @@ export class GameEngine {
 
     // 2) Converging vertical rails — near ends sit on (and beyond) the note-grid lines, meeting at
     //    the vanishing point (cx, top).
-    for (let i = -2; i <= this.laneCount + 2; i++) {
+    // Doubled rail density (half-lane steps) for finer, higher-quality perspective detail.
+    for (let i = -3; i <= this.laneCount + 3; i += 0.5) {
+      const major = Number.isInteger(i);
       const xBot = i * this.laneW;
       const f = xBot - cx;
-      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 0.72));
-      ctx.strokeStyle = rgbCss(GREEN, (0.045 + 0.11 * edgeFade) * pulse + comboGlow * 0.05);
-      ctx.lineWidth = 1 + edgeFade * 1.3;
+      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 0.85));
+      ctx.strokeStyle = rgbCss(GREEN, (0.03 + (major ? 0.11 : 0.05) * edgeFade) * pulse + comboGlow * 0.05);
+      ctx.lineWidth = (major ? 1.4 : 0.8) + edgeFade * 1.2;
       ctx.beginPath();
       ctx.moveTo(depthX(f, 0), top);
       ctx.lineTo(xBot, bot);
       ctx.stroke();
     }
 
-    // 3) Flowing horizontal rungs — bunched at the horizon, racing toward the viewer.
-    const rungs = 22;
-    const speed = 0.00016 + moodNorm * 0.00024;
+    // 3) Flowing horizontal rungs — bunched at the horizon, racing toward the viewer. Doubled
+    //    count + a soft bloom underlay per rung for smoother, higher-quality lines (x2). A steeper
+    //    perspective curve makes the road rush more head-on at the player.
+    const rungs = 40;
+    const speed = 0.00022 + moodNorm * 0.0003;
     const phase = ((songMs * speed) % 1 + 1) % 1;
     for (let i = 0; i < rungs; i++) {
       const p = (i / rungs + phase) % 1; // 0 far → 1 near
-      const sf = Math.pow(p, 2.4); // perspective bunching
+      const sf = Math.pow(p, 2.85); // steeper = road comes more directly at you
       const y = top + h * sf;
-      const halfW = fOuter * (0.02 + 0.98 * sf);
-      const a = (0.04 + 0.5 * sf) * pulse + comboGlow * 0.12;
-      ctx.strokeStyle = rgbCss(sf > 0.55 ? GREEN : DIM, a);
-      ctx.lineWidth = 0.8 + sf * 2.4;
+      const halfW = fOuter * (0.012 + 0.988 * sf);
+      const a = (0.035 + 0.52 * sf) * pulse + comboGlow * 0.12;
+      const col = sf > 0.5 ? GREEN : DIM;
+      // soft bloom underlay
+      ctx.strokeStyle = rgbCss(col, a * 0.5);
+      ctx.lineWidth = 2 + sf * 5;
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW, y);
+      ctx.lineTo(cx + halfW, y);
+      ctx.stroke();
+      // bright core
+      ctx.strokeStyle = rgbCss(col, a);
+      ctx.lineWidth = 0.7 + sf * 2.2;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
       ctx.lineTo(cx + halfW, y);
       ctx.stroke();
     }
 
-    // 4) Digital rain — bright green streaks falling down the perspective toward you.
-    const drops = this.laneCount * 5;
+    // 4) Digital rain — bright green streaks falling down the perspective toward you (doubled).
+    const drops = this.laneCount * 9;
     for (let d = 0; d < drops; d++) {
       const seed = d * 1.37;
       const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5; // deterministic lateral position
       const f = (lane01 - 0.5) * 2 * fOuter;
-      const t = ((songMs * (0.00022 + Math.abs(Math.sin(seed)) * 0.00014)) + (seed % 1)) % 1;
-      const sf = Math.pow(t, 2.2);
+      const t = ((songMs * (0.0003 + Math.abs(Math.sin(seed)) * 0.00018)) + (seed % 1)) % 1;
+      const sf = Math.pow(t, 2.6);
       const y = top + h * sf;
       const x = depthX(f, sf);
-      const len = 6 + sf * 24;
-      ctx.strokeStyle = rgbCss(RAIN, (0.1 + 0.6 * sf) * pulse);
-      ctx.lineWidth = 0.8 + sf * 1.8;
+      const len = 6 + sf * 26;
+      ctx.strokeStyle = rgbCss(RAIN, (0.1 + 0.62 * sf) * pulse);
+      ctx.lineWidth = 0.8 + sf * 1.9;
       ctx.beginPath();
       ctx.moveTo(x, y - len);
       ctx.lineTo(x, y);
@@ -1043,52 +1058,49 @@ export class GameEngine {
     const pulse = 0.55 + beatPulse * 0.45; // 0.55..1 across the beat (always clearly lit)
     const baseGlow = (0.2 + moodNorm * 0.16) * pulse + comboGlow * 0.22;
 
-    // ---- Glowing, pulsing GRID -------------------------------------------------
-    // 1) Soft additive glow pass (vertical + horizontal) so the whole lattice luminesces. Two
-    // passes — a wide soft bloom under a tighter bright line — so the grid genuinely glows.
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.6);
-    ctx.lineWidth = 7 + comboGlow * 8 + beatPulse * 4;
-    ctx.beginPath();
-    for (let i = 0; i <= this.laneCount; i++) {
-      const x = i * this.laneW;
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bot);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = rgbCss(glowC, baseGlow);
-    ctx.lineWidth = 2.5 + comboGlow * 5 + beatPulse * 2;
-    ctx.beginPath();
-    for (let i = 0; i <= this.laneCount; i++) {
-      const x = i * this.laneW;
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bot);
-    }
-    // Horizontal rungs scroll downward on the beat so the grid reads as a moving lattice.
-    const rows = 7;
+    // ---- Flowy, glowing lane lines --------------------------------------------
+    // Thicker, gently UNDULATING vertical lines so the note grid reads clearly in FRONT of the
+    // straight perspective road behind it (the road now owns the horizontal lattice). Three passes:
+    // wide green bloom, bright green core, and a crisp mint keyline on top.
     const span = bot - top;
-    const drift = (performance.now() / 36) % (span / rows);
-    for (let r = -1; r <= rows; r++) {
-      const y = top + ((r * span) / rows + drift);
-      if (y < top || y > bot) continue;
-      ctx.moveTo(0, y);
-      ctx.lineTo(this.w, y);
-    }
-    ctx.stroke();
-    ctx.restore();
-
-    // 2) Crisp divider lines on top of the glow so the lanes stay legible.
-    for (let i = 0; i <= this.laneCount; i++) {
-      const x = i * this.laneW;
-      const lg = ctx.createLinearGradient(0, top, 0, bot);
-      lg.addColorStop(0, `rgba(255,255,255,${0.16 + comboGlow * 0.22})`);
-      lg.addColorStop(1, 'rgba(255,255,255,0.04)');
-      ctx.strokeStyle = lg;
-      ctx.lineWidth = i === 0 || i === this.laneCount ? 2 : 1.4;
+    const t = performance.now();
+    const amp = this.laneW * 0.06;
+    const wavy = (x: number, phase: number) => {
       ctx.beginPath();
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bot);
+      const steps = 20;
+      for (let s = 0; s <= steps; s++) {
+        const fy = s / steps;
+        const y = top + span * fy;
+        const wx = x + amp * Math.sin(fy * 6.3 + t / 620 + phase);
+        if (s === 0) ctx.moveTo(wx, y);
+        else ctx.lineTo(wx, y);
+      }
+    };
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i <= this.laneCount; i++) {
+      const phase = i * 1.7;
+      // wide soft bloom
+      wavy(i * this.laneW, phase);
+      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.5);
+      ctx.lineWidth = 11 + comboGlow * 9 + beatPulse * 5;
+      ctx.stroke();
+      // bright green core
+      wavy(i * this.laneW, phase);
+      ctx.strokeStyle = rgbCss(glowC, baseGlow + 0.12);
+      ctx.lineWidth = 4.5 + comboGlow * 5 + beatPulse * 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Crisp mint keyline so the lanes stay razor-legible over the glow.
+    for (let i = 0; i <= this.laneCount; i++) {
+      wavy(i * this.laneW, i * 1.7);
+      const edge = i === 0 || i === this.laneCount;
+      ctx.strokeStyle = `rgba(214,255,228,${0.26 + comboGlow * 0.25})`;
+      ctx.lineWidth = edge ? 3.6 : 2.6;
+      ctx.lineCap = 'round';
       ctx.stroke();
     }
 
