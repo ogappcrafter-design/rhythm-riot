@@ -93,20 +93,19 @@ export function SongSelect() {
                 </div>
               </div>
 
-              <div className="row" style={{ marginTop: 12, gap: 10, justifyContent: 'space-between' }}>
-                <div className="row" style={{ gap: 10 }}>
-                  {DIFFICULTY_ORDER.map((diff) => {
-                    const locked = diff === 'expert' && !unlocked;
-                    return (
-                      <DifficultyGem
-                        key={diff}
-                        diff={diff}
-                        locked={locked}
-                        onClick={() => pick(track.id, diff)}
-                      />
-                    );
-                  })}
-                </div>
+              <div className="pick-hint" style={{ marginTop: 12 }}>Tap a difficulty to play</div>
+              <div className="row" style={{ marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+                {DIFFICULTY_ORDER.map((diff) => {
+                  const locked = diff === 'expert' && !unlocked;
+                  return (
+                    <DifficultyGem
+                      key={diff}
+                      diff={diff}
+                      locked={locked}
+                      onClick={() => pick(track.id, diff)}
+                    />
+                  );
+                })}
               </div>
 
               {!unlocked && (

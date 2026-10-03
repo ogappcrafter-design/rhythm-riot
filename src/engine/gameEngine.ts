@@ -101,7 +101,7 @@ const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to 
 const SLIDE_GRACE_MS = 200; // how long the tracking finger can be off the path before it breaks
 const SLIDE_TOL = 0.6; // how far (in lanes) the tracking finger may be from the moving point
 const HOLD_RELEASE_WINDOW = 140; // lifting within this of the end still completes the sustain
-const DOT_SPRITE_SIZE = 256; // high-res note sprites so orbs stay crisp scaled up on dense screens
+const DOT_SPRITE_SIZE = 320; // high-res note sprites (≈3× display size) so orbs/stars stay razor-crisp
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
 const JUDGE_LABEL: Record<Judgement, string> = { perfect: 'PERFECT', great: 'GREAT', good: 'GOOD', miss: 'MISS' };
@@ -169,6 +169,7 @@ export class GameEngine {
   private flowStars: FlowStar[] = [];
   private dotSprites = new Map<number, HTMLCanvasElement>();
   private swirlSprites = new Map<number, HTMLCanvasElement>();
+  private starSprites = new Map<number, HTMLCanvasElement>(); // glowing 3D stars (100+ combo)
 
   private raf = 0;
   private running = false;
@@ -249,6 +250,7 @@ export class GameEngine {
     this.particles.resize(this.w, this.h);
     this.dotSprites.clear();
     this.swirlSprites.clear();
+    this.starSprites.clear();
     this.initFlow();
   }
 
@@ -292,6 +294,7 @@ export class GameEngine {
     cancelAnimationFrame(this.raf);
     this.dotSprites.clear();
     this.swirlSprites.clear();
+    this.starSprites.clear();
   }
 
   // ---- geometry -------------------------------------------------------
@@ -445,13 +448,16 @@ export class GameEngine {
         marvelous ? MARVELOUS_COLOR : JUDGE_COLORS[j],
         j !== 'good',
       );
-      // Combo-tier milestones (50 = grid glow, 100 = rainbow + sparkles) — visual only, no chime.
+      // Combo-tier milestones — visual only, no chime. 50 = HOT COMBO (rainbow notes + sparkles +
+      // grid glow); 100 = STAR POWER (note heads become glowing swirling stars).
       if (this.combo >= 100 && this.lastComboTier < 100) {
         this.lastComboTier = 100;
         this.comboPop = 1.8;
+        this.spawnFloater('STAR POWER!', MARVELOUS_COLOR, true);
       } else if (this.combo >= 50 && this.lastComboTier < 50) {
         this.lastComboTier = 50;
         this.comboPop = 1.8;
+        this.spawnFloater('HOT COMBO!', '#ff8a3c', true);
       }
     }
     const energy = sampleMoodCurve(this.opts.chart, n.timeMs);
@@ -781,6 +787,83 @@ export class GameEngine {
     return cv;
   }
 
+  /** A glowing 3D five-point star in the beat color — used for note heads once the combo passes
+   *  100 ("star power"). Bevelled with a bright up-left core → deep rim for depth, wrapped in a
+   *  colored glow. The swirl sprite still churns on top so the stars read as living energy. */
+  private getStarSprite(key: number, color: RGB): HTMLCanvasElement {
+    const cached = this.starSprites.get(key);
+    if (cached) return cached;
+    const S = DOT_SPRITE_SIZE;
+    const cv = document.createElement('canvas');
+    cv.width = S;
+    cv.height = S;
+    const c = cv.getContext('2d')!;
+    const cx = S / 2;
+    const cy = S / 2;
+    const outer = S * 0.4;
+    const inner = outer * 0.46;
+    const bright = lightenRGB(color, 0.8);
+    const deep = darkenRGB(color, 0.5);
+
+    const starPath = (ro: number, ri: number) => {
+      c.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? ro : ri;
+        const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+        const x = cx + Math.cos(ang) * r;
+        const y = cy + Math.sin(ang) * r;
+        if (i === 0) c.moveTo(x, y);
+        else c.lineTo(x, y);
+      }
+      c.closePath();
+    };
+
+    // 1) Outer glow halo in the star shape.
+    c.save();
+    c.shadowColor = rgbCss(bright, 1);
+    c.shadowBlur = S * 0.34;
+    c.fillStyle = rgbCss(color, 0.9);
+    starPath(outer * 0.92, inner * 0.92);
+    c.fill();
+    c.restore();
+
+    // 2) 3D body: a radial gradient offset up-left (lit core → deep rim) clipped to the star.
+    c.save();
+    starPath(outer, inner);
+    c.clip();
+    const g = c.createRadialGradient(cx - outer * 0.3, cy - outer * 0.34, outer * 0.06, cx, cy, outer * 1.05);
+    g.addColorStop(0, rgbCss(lightenRGB(color, 0.95), 1));
+    g.addColorStop(0.35, rgbCss(bright, 1));
+    g.addColorStop(0.7, rgbCss(color, 1));
+    g.addColorStop(1, rgbCss(deep, 1));
+    c.fillStyle = g;
+    c.fillRect(cx - outer, cy - outer, outer * 2, outer * 2);
+    c.restore();
+
+    // 3) Bright edge stroke + thin dark keyline so it reads on any lane.
+    starPath(outer, inner);
+    c.strokeStyle = rgbCss(lightenRGB(color, 0.7), 0.85);
+    c.lineWidth = S * 0.02;
+    c.lineJoin = 'round';
+    c.stroke();
+    starPath(outer + S * 0.004, inner);
+    c.strokeStyle = 'rgba(0,0,0,0.3)';
+    c.lineWidth = S * 0.012;
+    c.stroke();
+
+    // 4) Specular pop on the top-left point.
+    const hl = c.createRadialGradient(cx - outer * 0.3, cy - outer * 0.4, 0, cx - outer * 0.3, cy - outer * 0.4, outer * 0.5);
+    hl.addColorStop(0, 'rgba(255,255,255,0.85)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = hl;
+    c.beginPath();
+    c.arc(cx - outer * 0.28, cy - outer * 0.34, outer * 0.34, 0, Math.PI * 2);
+    c.fill();
+
+    this.starSprites.set(key, cv);
+    return cv;
+  }
+
   // ---- render ---------------------------------------------------------
   private render(songMs: number): void {
     const ctx = this.ctx;
@@ -806,14 +889,16 @@ export class GameEngine {
 
     this.drawFlow(cw.particle, moodNorm);
 
-    const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.6 : 0;
+    // Combo tiers: 50 = "hot combo" (rainbow notes + side sparkles + grid glow), 100 = star power
+    // (notes become glowing swirling stars, grid glow maxes out).
+    const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.7 : 0;
     this.drawPlayfield(cw, moodNorm, beatPulse);
-    this.drawLanes(cw, comboGlow);
+    this.drawLanes(cw, comboGlow, beatPulse, moodNorm);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs);
     this.drawReceptors(cw, moodNorm, beatPulse);
     this.drawGauge(cw, moodNorm);
-    if (this.combo >= 100) this.drawSideSparkles(songMs);
+    if (this.combo >= 50) this.drawSideSparkles(songMs);
     this.drawCombo(moodNorm, cw.glow);
     this.drawFloaters();
     this.drawMissFlash();
@@ -853,16 +938,56 @@ export class GameEngine {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  private drawLanes(cw: ReturnType<typeof moodColorway>, comboGlow: number): void {
+  private drawLanes(cw: ReturnType<typeof moodColorway>, comboGlow: number, beatPulse: number, moodNorm: number): void {
     const ctx = this.ctx;
     const top = this.receptorY - this.laneW * 0.7;
     const bot = this.spawnY + 30;
-    // Vertical lane dividers (flat — DDR columns).
+    const glowC = lightenRGB(cw.glow, 0.4);
+    // The whole grid breathes on the beat; it swells further at hot/star combo tiers.
+    const pulse = 0.55 + beatPulse * 0.45; // 0.55..1 across the beat (always clearly lit)
+    const baseGlow = (0.2 + moodNorm * 0.16) * pulse + comboGlow * 0.22;
+
+    // ---- Glowing, pulsing GRID -------------------------------------------------
+    // 1) Soft additive glow pass (vertical + horizontal) so the whole lattice luminesces. Two
+    // passes — a wide soft bloom under a tighter bright line — so the grid genuinely glows.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.6);
+    ctx.lineWidth = 7 + comboGlow * 8 + beatPulse * 4;
+    ctx.beginPath();
+    for (let i = 0; i <= this.laneCount; i++) {
+      const x = i * this.laneW;
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bot);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = rgbCss(glowC, baseGlow);
+    ctx.lineWidth = 2.5 + comboGlow * 5 + beatPulse * 2;
+    ctx.beginPath();
+    for (let i = 0; i <= this.laneCount; i++) {
+      const x = i * this.laneW;
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bot);
+    }
+    // Horizontal rungs scroll downward on the beat so the grid reads as a moving lattice.
+    const rows = 7;
+    const span = bot - top;
+    const drift = (performance.now() / 36) % (span / rows);
+    for (let r = -1; r <= rows; r++) {
+      const y = top + ((r * span) / rows + drift);
+      if (y < top || y > bot) continue;
+      ctx.moveTo(0, y);
+      ctx.lineTo(this.w, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 2) Crisp divider lines on top of the glow so the lanes stay legible.
     for (let i = 0; i <= this.laneCount; i++) {
       const x = i * this.laneW;
       const lg = ctx.createLinearGradient(0, top, 0, bot);
-      lg.addColorStop(0, `rgba(255,255,255,${0.12 + comboGlow * 0.2})`);
-      lg.addColorStop(1, 'rgba(255,255,255,0.03)');
+      lg.addColorStop(0, `rgba(255,255,255,${0.16 + comboGlow * 0.22})`);
+      lg.addColorStop(1, 'rgba(255,255,255,0.04)');
       ctx.strokeStyle = lg;
       ctx.lineWidth = i === 0 || i === this.laneCount ? 2 : 1.4;
       ctx.beginPath();
@@ -870,21 +995,7 @@ export class GameEngine {
       ctx.lineTo(x, bot);
       ctx.stroke();
     }
-    // Combo glow columns at 50+/100+.
-    if (comboGlow > 0) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i <= this.laneCount; i++) {
-        const x = i * this.laneW;
-        ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.3), 0.12 * comboGlow);
-        ctx.lineWidth = 4 + comboGlow * 5;
-        ctx.beginPath();
-        ctx.moveTo(x, top);
-        ctx.lineTo(x, bot);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
+
     // Pressed-lane wash (from receptor downward).
     for (let lane = 0; lane < this.laneCount; lane++) {
       const flash = this.laneFlash[lane];
@@ -902,7 +1013,8 @@ export class GameEngine {
     const ctx = this.ctx;
     const tapMs = songMs - this.opts.latencyOffsetMs;
     const goodWin = this.diffChart.hitWindowMs.good;
-    const rainbow = this.combo >= 100;
+    const rainbow = this.combo >= 50; // hot combo → rainbow note heads
+    const stars = this.combo >= 100; // star power → note heads become glowing swirling stars
     const rainbowHi = Math.floor(songMs / 110) % RAINBOW.length;
     const noteSize = this.laneW * 0.62;
 
@@ -973,7 +1085,7 @@ export class GameEngine {
         // the lane you must currently be on, showing you where to drag.
         const beat = 1 + 0.06 * Math.sin(songMs / 90);
         const followLane = n.isSlide ? this.laneAt(n, tapMs) : n.lane;
-        this.drawOrb(keyFor(n), colorFor(n), this.laneCenterX(followLane), this.receptorY, noteSize * 1.06 * beat, 1, songMs, n.timeMs);
+        this.drawOrb(keyFor(n), colorFor(n), this.laneCenterX(followLane), this.receptorY, noteSize * 1.06 * beat, 1, songMs, n.timeMs, stars);
         continue;
       }
       const delta = n.timeMs - tapMs;
@@ -982,24 +1094,36 @@ export class GameEngine {
       const y = this.yFor(p);
       const x = this.laneCenterX(n.lane);
       const alpha = Math.min(1, p * 6); // fade in as it appears at the bottom
-      this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize, alpha, songMs, n.timeMs);
+      this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize, alpha, songMs, n.timeMs, stars);
     }
   }
 
-  /** Draw a glowing orb plus its swirling inner flow (rotated over time) at (x,y). */
-  private drawOrb(key: number, color: RGB, x: number, y: number, size: number, alpha: number, songMs: number, phase: number): void {
+  /** Draw a glowing note head plus its swirling inner flow (rotated over time) at (x,y). When
+   *  `star` is set (100+ combo) the body is a slowly-spinning glowing 3D star instead of an orb. */
+  private drawOrb(key: number, color: RGB, x: number, y: number, size: number, alpha: number, songMs: number, phase: number, star = false): void {
     const ctx = this.ctx;
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(this.getOrbSprite(key, color), x - size / 2, y - size / 2, size, size);
+    if (star) {
+      // The whole star gently spins for the "swirling" read.
+      const sp = size * 1.12;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      ctx.rotate((songMs * 0.0016 + phase * 0.0013) % (Math.PI * 2));
+      ctx.drawImage(this.getStarSprite(key, color), -sp / 2, -sp / 2, sp, sp);
+      ctx.restore();
+    } else {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(this.getOrbSprite(key, color), x - size / 2, y - size / 2, size, size);
+    }
     // Swirling energy — rotated by time (+ a per-note phase) and blended additively so it reads as
-    // luminous flow churning inside the glass.
+    // luminous flow churning inside the glass / star.
     const swirl = this.getSwirlSprite(key, color);
-    const s = size * 0.9;
+    const s = size * (star ? 0.7 : 0.9);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = alpha * 0.9;
     ctx.translate(x, y);
-    ctx.rotate((songMs * 0.0013 + phase * 0.0011) % (Math.PI * 2));
+    ctx.rotate((-songMs * 0.0013 - phase * 0.0011) % (Math.PI * 2));
     ctx.drawImage(swirl, -s / 2, -s / 2, s, s);
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -1166,7 +1290,7 @@ export class GameEngine {
     const size = 48 * scale;
     const cx = this.w / 2;
     const cy = this.h * 0.44;
-    const tier = this.combo >= 100 ? RAINBOW[Math.floor(performance.now() / 110) % RAINBOW.length] : glow;
+    const tier = this.combo >= 50 ? RAINBOW[Math.floor(performance.now() / 110) % RAINBOW.length] : glow;
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

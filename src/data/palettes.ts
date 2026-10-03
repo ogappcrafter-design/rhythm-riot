@@ -126,6 +126,44 @@ export const PALETTES: Record<string, Palette> = {
       lane: [230, 90, 40],
     },
   },
+  you_lick_the_lion: {
+    name: 'Acid Trip',
+    low: {
+      bgDeep: [8, 14, 10],
+      bgGlow: [26, 50, 30],
+      note: [120, 220, 120],
+      glow: [90, 200, 150],
+      particle: [160, 120, 220],
+      lane: [40, 78, 54],
+    },
+    high: {
+      bgDeep: [14, 10, 36],
+      bgGlow: [70, 230, 120],
+      note: [230, 130, 255],
+      glow: [120, 255, 180],
+      particle: [255, 150, 240],
+      lane: [150, 90, 235],
+    },
+  },
+  take_me_back_west: {
+    name: 'Desert Sunset',
+    low: {
+      bgDeep: [22, 12, 10],
+      bgGlow: [58, 28, 18],
+      note: [220, 150, 90],
+      glow: [200, 120, 70],
+      particle: [210, 150, 100],
+      lane: [86, 48, 30],
+    },
+    high: {
+      bgDeep: [38, 16, 10],
+      bgGlow: [230, 110, 50],
+      note: [255, 200, 120],
+      glow: [255, 150, 80],
+      particle: [255, 180, 110],
+      lane: [120, 160, 150],
+    },
+  },
   badass_underglow: {
     name: 'Neon Underglow',
     low: {

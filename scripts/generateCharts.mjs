@@ -35,6 +35,8 @@ const TRACKS = [
   { id: 'dub_steps_trip', title: 'Dub Steps Trip', audioFile: 'dub_steps_trip.mp4' },
   { id: 'everyday_g', title: 'Everyday G', audioFile: 'everyday_g.mp4' },
   { id: 'badass_underglow', title: 'Badass Underglow', audioFile: 'badass_underglow.mp4' },
+  { id: 'you_lick_the_lion', title: 'You Lick the Lion', audioFile: 'you_lick_the_lion.mp4' },
+  { id: 'take_me_back_west', title: 'Take Me Back West', audioFile: 'take_me_back_west.mp4' },
 ];
 
 const HIT_WINDOWS = {
@@ -52,11 +54,18 @@ const DIFF_CONFIG = {
   // how many lanes a slide may travel. Beginners get a few gentle 1-lane drags; experts get more,
   // wider ones. A slide always resolves during a cleared span (no other notes), so the drag path
   // is unobstructed.
-  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.10, slideFraction: 0.25, slideMaxStep: 1 },
-  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.11, slideFraction: 0.4, slideMaxStep: 2 },
-  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.12, slideFraction: 0.5, slideMaxStep: 2 },
-  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.13, slideFraction: 0.6, slideMaxStep: 3 },
+  easy: { laneCount: 3, onsetFraction: 0.5, minSpacingMs: 250, snapToBeat: true, holdFraction: 0.10, slideFraction: 0.45, slideMaxStep: 1 },
+  medium: { laneCount: 4, onsetFraction: 0.75, minSpacingMs: 170, snapToBeat: false, holdFraction: 0.12, slideFraction: 0.62, slideMaxStep: 2 },
+  hard: { laneCount: 4, onsetFraction: 1.0, minSpacingMs: 105, snapToBeat: false, holdFraction: 0.14, slideFraction: 0.72, slideMaxStep: 2 },
+  expert: { laneCount: 5, onsetFraction: 1.0, minSpacingMs: 85, snapToBeat: false, holdFraction: 0.15, slideFraction: 0.82, slideMaxStep: 3 },
 };
+
+// Guaranteed playable lead-in: never place a note before this much time has passed, so there is
+// always room for a note to spawn, travel the full approach, and be reacted to. Without this,
+// onsets in the first second (common on the harder, near-100%-onset charts) arrive mid-screen or
+// instantly and are physically un-hittable. One bar at 100bpm ≈ 2.4s; 2000ms is a safe floor that
+// still keeps the chart tight to the intro.
+const LEAD_IN_MS = 2000;
 
 // Hold-note tuning (spec 5.4 "hold" type). Holds are now PITCH-BASED: a note becomes a hold only
 // where pYIN found a genuinely held note (a stable-pitch segment — see analyze.py), and the hold
@@ -223,7 +232,10 @@ function markHolds(trackId, diff, notes, analysis) {
   // ties for the same-lane cooldown, keeping it deterministic.
   candidates.sort((a, b) => notes[a.i].timeMs - notes[b.i].timeMs + (rng() - 0.5) * 2);
 
-  const targetHolds = Math.round(notes.length * cfg.holdFraction);
+  // Trippy tracks lean on sustained, flowing notes — give them a bigger hold budget so there's
+  // plenty to promote into slides.
+  const holdFraction = (TRACK_SLIDE_STYLE[trackId]?.holdFraction) ?? cfg.holdFraction;
+  const targetHolds = Math.round(notes.length * holdFraction);
   const lastHoldTimeByLane = {};
   let placed = 0;
   for (const c of candidates) {
@@ -269,16 +281,25 @@ function classifyColor(tMs, beatsMs) {
 // Promote some holds to cross-lane SLIDE (drag) notes: the freeze body travels from its lane to a
 // target lane over its duration, so the player drags to follow it (Chunithm-style), judged like a
 // freeze (hold the path to the end = O.K., wander off/let go = N.G.). Deterministic (seeded).
+// Per-track slide character. "You Lick the Lion" is trippy as hell, so it gets near-constant,
+// long, flowing S-curve slides (curveChance high); other tracks keep the difficulty defaults.
+const TRACK_SLIDE_STYLE = {
+  you_lick_the_lion: { fraction: 0.95, curveChance: 0.85, minMs: 300, holdFraction: 0.26 },
+};
+
 function convertSlides(trackId, diff, notes, laneCount) {
   const cfg = DIFF_CONFIG[diff];
   if (!cfg.slideFraction || laneCount < 2) return;
-  const SLIDE_MIN_MS = 360; // don't drag anything shorter than this — it'd be a twitchy flick
+  const style = TRACK_SLIDE_STYLE[trackId] || {};
+  const slideFraction = Math.min(0.97, style.fraction ?? cfg.slideFraction);
+  const curveChance = style.curveChance ?? 0.4;
+  const SLIDE_MIN_MS = style.minMs ?? 360; // don't drag anything shorter — it'd be a twitchy flick
   const MS_PER_LANE = 300; // require at least this much time per lane crossed (fair drag speed)
   const rng = mulberry32(hashSeed(`${trackId}::${diff}::slides`));
   for (const n of notes) {
     if (n.type !== 'hold') continue;
     if (n.holdMs < SLIDE_MIN_MS) continue;
-    if (rng() >= cfg.slideFraction) continue;
+    if (rng() >= slideFraction) continue;
     // Cap travel so the drag never has to move faster than ~one lane per 300ms.
     const maxStep = Math.max(1, Math.min(cfg.slideMaxStep, laneCount - 1, Math.floor(n.holdMs / MS_PER_LANE)));
     let dir = rng() < 0.5 ? -1 : 1;
@@ -292,7 +313,7 @@ function convertSlides(trackId, diff, notes, laneCount) {
     // A gentle S-curve on longer, wider slides (hard/expert) — otherwise a straight diagonal.
     const start = n.timeMs;
     const finish = n.timeMs + n.holdMs;
-    if (cfg.slideMaxStep >= 2 && n.holdMs >= 700 && Math.abs(end - n.lane) >= 2 && rng() < 0.4) {
+    if (cfg.slideMaxStep >= 2 && n.holdMs >= 700 && Math.abs(end - n.lane) >= 2 && rng() < curveChance) {
       const midLane = Math.max(0, Math.min(laneCount - 1, n.lane + (dir * (step - 1) || dir)));
       n.path = [
         { tMs: start, lane: n.lane },
@@ -305,6 +326,39 @@ function convertSlides(trackId, diff, notes, laneCount) {
         { tMs: finish, lane: end },
       ];
     }
+  }
+}
+
+// Keep a SLIDE unobstructed: while a slide's drag is in progress there must be nothing else to
+// play — no long hold in another lane (you'd need a second finger planted) and no second slide
+// whose path could cross it. Conflicting sustains are demoted back to plain taps; the tap that
+// lands inside the surviving slide's span is then pruned by clearHoldOverlaps, so the drag path is
+// clean. Slides are prioritized (they're the showcase note), earliest-wins between two slides.
+function deconflictSlides(notes) {
+  const OVERLAP_GUARD = 60; // must genuinely overlap by more than this to count as a conflict
+  const spanOf = (n) => [n.timeMs, n.timeMs + (n.holdMs || 0)];
+  const overlaps = (a, b) => {
+    const [as, ae] = spanOf(a);
+    const [bs, be] = spanOf(b);
+    return as < be - OVERLAP_GUARD && bs < ae - OVERLAP_GUARD;
+  };
+  const demote = (n) => {
+    n.type = 'tap';
+    delete n.holdMs;
+    delete n.endLane;
+    delete n.path;
+  };
+
+  const slides = notes.filter((n) => n.type === 'slide').sort((a, b) => a.timeMs - b.timeMs);
+  const acceptedSlides = [];
+  for (const s of slides) {
+    if (acceptedSlides.some((a) => overlaps(a, s))) demote(s); // a second slide during a slide
+    else acceptedSlides.push(s);
+  }
+  // Any hold overlapping a surviving slide becomes a tap (no long holds during a slide).
+  for (const n of notes) {
+    if (n.type !== 'hold') continue;
+    if (acceptedSlides.some((a) => overlaps(a, n))) demote(n);
   }
 }
 
@@ -346,17 +400,19 @@ function buildDifficulty(trackId, diff, analysis) {
   let candidates = analysis.onsets;
   if (cfg.snapToBeat) candidates = snapToBeats(analysis.onsets, analysis.beatsMs);
   const target = Math.round(analysis.numOnsets * cfg.onsetFraction);
-  const picked = selectNotes(candidates, target, cfg.minSpacingMs);
+  // Guarantee a playable lead-in: discard onsets that fall before a note could be reacted to.
+  const picked = selectNotes(candidates, target, cfg.minSpacingMs).filter((n) => n.tMs >= LEAD_IN_MS);
   const notes = assignLanes(trackId, diff, picked, cfg.laneCount);
   markHolds(trackId, diff, notes, analysis);
   convertSlides(trackId, diff, notes, cfg.laneCount);
+  deconflictSlides(notes);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 
 // Expert: Hard's real-onset set (5-lane) + energy-driven flourishes on the hottest hits.
 function buildExpert(trackId, analysis) {
   const cfg = DIFF_CONFIG.expert;
-  const base = selectNotes(analysis.onsets, analysis.numOnsets, cfg.minSpacingMs);
+  const base = selectNotes(analysis.onsets, analysis.numOnsets, cfg.minSpacingMs).filter((n) => n.tMs >= LEAD_IN_MS);
 
   // Adaptive threshold: top ~20% by energy always yields flourish candidates.
   const energies = base.map((n) => n.energy).sort((a, b) => a - b);
@@ -382,6 +438,7 @@ function buildExpert(trackId, analysis) {
   const notes = assignLanes(trackId, 'expert', all, cfg.laneCount);
   markHolds(trackId, 'expert', notes, analysis);
   convertSlides(trackId, 'expert', notes, cfg.laneCount);
+  deconflictSlides(notes);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
 }
 

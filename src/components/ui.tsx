@@ -20,10 +20,10 @@ export function StarRow({ count, size = 22 }: { count: number; size?: number }) 
 }
 
 const DIFF_LABEL: Record<Difficulty, string> = {
-  easy: 'E',
-  medium: 'M',
-  hard: 'H',
-  expert: 'X',
+  easy: 'EASY',
+  medium: 'MEDIUM',
+  hard: 'HARD',
+  expert: 'EXPERT',
 };
 const DIFF_COLOR: Record<Difficulty, string> = {
   easy: '#4ade80',
@@ -32,7 +32,9 @@ const DIFF_COLOR: Record<Difficulty, string> = {
   expert: '#f59e0b',
 };
 
-/** A difficulty "gem" token. Locked state uses the shard-padlock (spec 2.1/8.2). */
+/** A difficulty selector chip. Spells out the full level name (EASY/MEDIUM/HARD/EXPERT) and reads
+ *  clearly as a tappable button so it's obvious this is where you pick the song + level. Locked
+ *  (Expert before it's earned) shows a padlock. */
 export function DifficultyGem({
   diff,
   active,
@@ -47,28 +49,24 @@ export function DifficultyGem({
   size?: number;
 }) {
   const color = DIFF_COLOR[diff];
+  const h = Math.max(40, size * 0.84);
   return (
     <button
-      className="diff-gem"
+      className={`diff-chip${active ? ' is-active' : ''}`}
       onClick={onClick}
       disabled={locked}
-      aria-label={`${diff}${locked ? ' locked' : ''}`}
+      aria-label={`Play ${diff}${locked ? ' (locked)' : ''}`}
       style={{
-        width: size,
-        height: size,
-        borderColor: active ? color : 'transparent',
-        boxShadow: active ? `0 0 18px ${color}` : 'none',
-        background: `radial-gradient(circle at 35% 30%, ${color}cc, ${color}22)`,
-        opacity: locked ? 0.55 : 1,
+        height: h,
+        fontSize: Math.max(13, size * 0.3),
+        ['--chip' as string]: color,
+        borderColor: active ? color : 'rgba(255,255,255,0.16)',
+        boxShadow: active ? `0 0 20px ${color}aa` : undefined,
+        opacity: locked ? 0.6 : 1,
       }}
     >
-      {locked ? (
-        <IconLock size={size * 0.5} color="#fff" />
-      ) : (
-        <span style={{ fontWeight: 900, fontStyle: 'italic', fontSize: size * 0.4, color: '#0a0820' }}>
-          {DIFF_LABEL[diff]}
-        </span>
-      )}
+      {locked ? <IconLock size={h * 0.44} color="#fff" /> : <span className="diff-chip-dot" aria-hidden />}
+      <span className="diff-chip-label">{DIFF_LABEL[diff]}</span>
     </button>
   );
 }

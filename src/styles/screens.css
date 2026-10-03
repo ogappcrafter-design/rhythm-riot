@@ -10,6 +10,9 @@
   overflow: hidden;
   background: transparent; /* the persistent aurora shows through */
   z-index: 5;
+  /* 3D stage: children with transform-style:preserve-3d get real depth/parallax. */
+  perspective: 1200px;
+  perspective-origin: 50% 38%;
 }
 .intro-bg {
   position: absolute;
@@ -92,12 +95,39 @@
   flex-direction: column;
   align-items: center;
   width: min(520px, 92vw);
+  transform-style: preserve-3d;
   animation: logo-in 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Depth drop so the word-art floats above the stage. */
+  filter: drop-shadow(0 18px 26px rgba(4, 4, 14, 0.6));
 }
 @keyframes logo-in {
-  0% { opacity: 0; transform: scale(0.6) translateY(20px); filter: blur(8px); }
+  0% { opacity: 0; transform: perspective(1200px) rotateX(24deg) scale(0.6) translateY(20px); filter: blur(8px); }
   60% { opacity: 1; filter: blur(0); }
-  100% { transform: scale(1); }
+  100% { transform: perspective(1200px) rotateX(0deg) scale(1); }
+}
+/* Once the logo has assembled it gently tilts in 3D so it reads as a solid object on a stage. */
+.intro.idle .intro-logo { animation: logo-sway 7s ease-in-out infinite; }
+@keyframes logo-sway {
+  0%, 100% { transform: perspective(1200px) rotateX(7deg) rotateY(-6deg) translateZ(0); }
+  50% { transform: perspective(1200px) rotateX(-4deg) rotateY(6deg) translateZ(18px); }
+}
+/* Reflective "floor" glow beneath the logo for a staged, premium look. */
+.intro-logo::after {
+  content: '';
+  position: absolute;
+  bottom: -46px;
+  left: 50%;
+  width: 70%;
+  height: 40px;
+  transform: translateX(-50%) rotateX(74deg);
+  background: radial-gradient(closest-side, rgba(124, 92, 255, 0.5), rgba(34, 211, 238, 0.18) 60%, transparent 80%);
+  filter: blur(7px);
+  z-index: -1;
+  animation: floor-breathe 3.4s ease-in-out infinite;
+}
+@keyframes floor-breathe {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) rotateX(74deg) scale(0.92); }
+  50% { opacity: 0.9; transform: translateX(-50%) rotateX(74deg) scale(1.05); }
 }
 .intro-logo::before {
   content: '';
@@ -249,22 +279,60 @@
   0%, 70% { left: -60%; }
   100% { left: 140%; }
 }
-.diff-gem { transition: transform 0.12s ease, box-shadow 0.2s ease; }
-.diff-gem:not(:disabled):hover { transform: rotate(45deg) scale(1.08); }
-
-/* ======================= DIFFICULTY GEM ======================= */
-.diff-gem {
-  border-radius: 14px;
-  border: 2px solid transparent;
-  display: grid;
-  place-items: center;
+/* ===================== DIFFICULTY CHIP ======================= */
+/* A clearly-tappable pill that spells out the level name. The colored dot + label + raised fill
+ * read as a button, so it's obvious this is where you pick the difficulty. */
+.diff-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.16);
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.2s ease;
-  transform: rotate(45deg);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: #fff;
+  white-space: nowrap;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--chip) 55%, #0a0820), color-mix(in srgb, var(--chip) 24%, #0a0820));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 3px 10px rgba(0,0,0,0.35);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.15s ease;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
-.diff-gem > * { transform: rotate(-45deg); }
-.diff-gem:active { transform: rotate(45deg) scale(0.9); }
-.diff-gem:disabled { cursor: not-allowed; }
+.diff-chip:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.12); }
+.diff-chip:not(:disabled):active { transform: translateY(0) scale(0.96); }
+.diff-chip:disabled { cursor: not-allowed; }
+.diff-chip.is-active { filter: brightness(1.15); }
+.diff-chip-dot {
+  width: 0.62em;
+  height: 0.62em;
+  border-radius: 50%;
+  background: var(--chip);
+  box-shadow: 0 0 10px var(--chip), inset 0 0 3px rgba(255,255,255,0.8);
+  flex-shrink: 0;
+}
+.diff-chip-label { line-height: 1; }
+
+/* "Tap a difficulty to play" affordance hint under each track. */
+.pick-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.62);
+  text-transform: uppercase;
+}
+.pick-hint::before {
+  content: '▶';
+  font-size: 10px;
+  color: var(--card-accent, #7c5cff);
+}
 
 /* ======================== SONG SELECT ========================= */
 .track-card { transition: transform 0.15s ease, box-shadow 0.2s ease; }

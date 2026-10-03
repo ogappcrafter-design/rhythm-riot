@@ -77,6 +77,24 @@ export const TRACKS: TrackMeta[] = [
     bpm: 136.0,
     durationSec: 222.01,
   },
+  {
+    id: 'you_lick_the_lion',
+    title: 'You Lick the Lion',
+    audioFile: 'you_lick_the_lion.mp4',
+    paletteKey: 'you_lick_the_lion',
+    tagline: 'Trippy · endless flowing slides',
+    bpm: 129.2,
+    durationSec: 312.3,
+  },
+  {
+    id: 'take_me_back_west',
+    title: 'Take Me Back West',
+    audioFile: 'take_me_back_west.mp4',
+    paletteKey: 'take_me_back_west',
+    tagline: 'Dusty sunset · wide groove',
+    bpm: 136.0,
+    durationSec: 212.42,
+  },
 ];
 
 export const TRACKS_BY_ID: Record<string, TrackMeta> = Object.fromEntries(

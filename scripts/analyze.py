@@ -36,6 +36,8 @@ TRACKS = [
     ("dub_steps_trip", "dub_steps_trip.mp4"),
     ("everyday_g", "everyday_g.mp4"),
     ("badass_underglow", "badass_underglow.mp4"),
+    ("you_lick_the_lion", "you_lick_the_lion.mp4"),
+    ("take_me_back_west", "take_me_back_west.mp4"),
 ]
 
 SR = 22050

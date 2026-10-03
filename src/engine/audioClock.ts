@@ -127,8 +127,12 @@ export class AudioClock {
         this.lastRawAudioMs = rawMs;
       }
       const interpolated = this.anchorAudioMs + (now - this.anchorPerf);
-      // Never run past the real audio position by more than a frame's worth.
-      return Math.min(interpolated, rawMs + 40);
+      // Clamp the interpolation tightly around the true audio position. currentTime only ticks a
+      // few times a second, so between ticks we advance with performance.now(); but we must not let
+      // that race AHEAD of the real playback, or every note arrives at the receptor slightly early
+      // (a consistent "dots line up too soon" feel). One frame of slack (16ms) keeps motion smooth
+      // without drifting ahead of what the player actually hears.
+      return Math.max(rawMs, Math.min(interpolated, rawMs + 16));
     }
     if (this.paused) return this.fallbackPausedAt;
     return performance.now() - this.fallbackStartPerf;
