@@ -961,12 +961,15 @@ export class GameEngine {
 
     // Stars (deterministic positions, twinkling).
     ctx.globalCompositeOperation = 'lighter';
-    for (let s = 0; s < 46; s++) {
+    for (let s = 0; s < 130; s++) {
       const sx = (Math.sin(s * 12.9898) * 0.5 + 0.5) * this.w;
-      const sy = skyTop + (Math.sin(s * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.92;
+      const sy = skyTop + (Math.sin(s * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.95;
       const tw = 0.4 + 0.6 * (Math.sin(songMs / 600 + s) * 0.5 + 0.5);
+      const r = 0.7 + (Math.sin(s * 3.7) * 0.5 + 0.5) * 0.9;
       ctx.fillStyle = `rgba(220,240,255,${0.5 * tw})`;
-      ctx.fillRect(sx, sy, 1.4, 1.4);
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Banded retro SUN rising from the horizon — wide radius so a big, prominent half-sun fills the
@@ -999,7 +1002,7 @@ export class GameEngine {
 
     // Glowing wireframe MOUNTAINS along the horizon (far dim ridge, near bright ridge).
     const drawRidge = (maxH: number, col: RGB, alpha: number, seedOff: number, lw: number) => {
-      const steps = 28;
+      const steps = 54;
       ctx.beginPath();
       ctx.moveTo(0, top);
       for (let i = 0; i <= steps; i++) {
@@ -1057,8 +1060,8 @@ export class GameEngine {
     ctx.closePath();
     ctx.fill();
 
-    // Converging vertical rails (half-lane density for finer detail).
-    for (let i = -3; i <= this.laneCount + 3; i += 0.5) {
+    // Converging vertical rails (quarter-lane density — x3 finer perspective detail).
+    for (let i = -3; i <= this.laneCount + 3; i += 0.25) {
       const major = Number.isInteger(i);
       const xBot = i * this.laneW;
       const f = xBot - cx;
@@ -1071,8 +1074,8 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // Flowing horizontal rungs — bunched at the horizon, racing head-on toward the viewer.
-    const rungs = 40;
+    // Flowing horizontal rungs — bunched at the horizon, racing head-on toward the viewer (x3 denser).
+    const rungs = 72;
     const speed = 0.00022 + moodNorm * 0.0003;
     const phase = ((songMs * speed) % 1 + 1) % 1;
     for (let i = 0; i < rungs; i++) {
@@ -1096,8 +1099,8 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // Digital rain — bright streaks falling down the perspective toward you.
-    const drops = this.laneCount * 9;
+    // Digital rain — bright streaks falling down the perspective toward you (x3 denser).
+    const drops = this.laneCount * 16;
     for (let d = 0; d < drops; d++) {
       const seed = d * 1.37;
       const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5;

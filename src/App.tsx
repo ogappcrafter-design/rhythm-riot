@@ -10,7 +10,7 @@ import { HelpScreen } from './screens/HelpScreen';
 import { TutorialScreen } from './screens/TutorialScreen';
 import { CalibrationScreen } from './screens/CalibrationScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
-import { AuroraBackground } from './components/AuroraBackground';
+import { SynthwaveBackground } from './components/SynthwaveBackground';
 
 /** Only gameplay paints its own full-screen background; everything else shares ONE persistent
  *  aurora so navigating between screens never flashes or restarts the background. */
@@ -60,7 +60,7 @@ export function App() {
 
   return (
     <div className="app-frame">
-      {route.name !== 'game' && <AuroraBackground />}
+      {route.name !== 'game' && <SynthwaveBackground />}
       {body}
     </div>
   );

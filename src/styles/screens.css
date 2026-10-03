@@ -1099,3 +1099,90 @@
 .vw1 { animation: vwave 1.6s ease-in-out infinite; }
 .vw2 { animation: vwave 1.6s ease-in-out 0.25s infinite; }
 @keyframes vwave { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+
+/* ===================== APP-WIDE SYNTHWAVE BACKDROP ===================== */
+.synth {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  background: linear-gradient(180deg, #06030f 0%, #190a33 34%, #3a1152 54%, #6a1f6a 61%, #07040f 62%);
+}
+/* Sky holds the sun + mountains + stars; clipped at the horizon so the sun half-sets. */
+.synth-sky { position: absolute; left: 0; right: 0; top: 0; height: 62%; overflow: hidden; }
+.synth-stars {
+  position: absolute;
+  inset: 0 0 20% 0;
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, #fff, transparent 60%),
+    radial-gradient(1.2px 1.2px at 28% 42%, #cfe8ff, transparent 60%),
+    radial-gradient(1.5px 1.5px at 44% 12%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 62% 34%, #e6f0ff, transparent 60%),
+    radial-gradient(1.6px 1.6px at 76% 20%, #fff, transparent 60%),
+    radial-gradient(1.1px 1.1px at 88% 40%, #cfe8ff, transparent 60%),
+    radial-gradient(1.2px 1.2px at 20% 60%, #fff, transparent 60%),
+    radial-gradient(1.3px 1.3px at 54% 54%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 70% 62%, #dde8ff, transparent 60%),
+    radial-gradient(1.4px 1.4px at 92% 58%, #fff, transparent 60%);
+  animation: synth-twinkle 3.4s ease-in-out infinite;
+}
+@keyframes synth-twinkle { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+/* Banded retro sun (upper half shows above the horizon). */
+.synth-sun {
+  position: absolute;
+  left: 50%;
+  bottom: -46%;
+  width: 62%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fff2a8 0%, #ffd36a 22%, #ff7aa2 55%, #d84ce0 82%);
+  box-shadow: 0 0 70px 14px rgba(255, 122, 162, 0.55), 0 0 160px 48px rgba(216, 76, 224, 0.35);
+}
+/* Scanline gaps across the lower 60% of the sun. */
+.synth-sun::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 40%; bottom: 0;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  background: repeating-linear-gradient(180deg, transparent 0 7px, #190a33 7px 12px, transparent 12px 13px);
+}
+.synth-mtns {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 28%;
+  fill: #06030f;
+  overflow: visible;
+}
+.synth-mtns polyline { fill: #06030f; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+.synth-mtns-far polyline { stroke: #1f8f8f; filter: drop-shadow(0 0 3px #22d3ee88); opacity: 0.6; }
+.synth-mtns-near { height: 20%; }
+.synth-mtns-near polyline { stroke: #43ffe0; filter: drop-shadow(0 0 5px #43ffe0); stroke-width: 0.6; }
+/* Perspective grid floor flowing toward the viewer. */
+.synth-floor {
+  position: absolute;
+  left: -60%; right: -60%; top: 60%; height: 90%;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(72, 255, 200, 0.55) 0 1.5px, transparent 1.5px 6.5%),
+    repeating-linear-gradient(0deg, rgba(72, 255, 200, 0.55) 0 1.5px, transparent 1.5px 7%);
+  transform: perspective(300px) rotateX(81deg);
+  transform-origin: top center;
+  animation: synth-floor 3.2s linear infinite;
+  will-change: background-position;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 100%);
+          mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 100%);
+}
+@keyframes synth-floor { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 200px; } }
+.synth-horizon {
+  position: absolute; left: 0; right: 0; top: calc(62% - 1px); height: 2px;
+  background: #fff6cf;
+  box-shadow: 0 0 20px 5px rgba(255, 122, 162, 0.8), 0 0 50px 12px rgba(216, 76, 224, 0.45);
+}
+.synth-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(130% 95% at 50% 42%, transparent 52%, rgba(4, 3, 12, 0.82) 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .synth-floor, .synth-stars { animation: none; }
+}
