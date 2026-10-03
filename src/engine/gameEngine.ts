@@ -893,7 +893,7 @@ export class GameEngine {
     // (notes become glowing swirling stars, grid glow maxes out).
     const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.7 : 0;
     this.drawPlayfield(cw, moodNorm, beatPulse);
-    this.drawGridRoad(songMs, beatPulse, moodNorm, comboGlow);
+    this.drawGridRoad(cw, songMs, beatPulse, moodNorm, comboGlow);
     this.drawLanes(cw, comboGlow, beatPulse, moodNorm);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs);
@@ -925,11 +925,11 @@ export class GameEngine {
     ctx.restore();
   }
 
-  /** A Matrix-style perspective "road" that flows toward the viewer BEHIND the flat note grid:
-   *  a black floor with green rails converging to a horizon vanishing point, horizontal rungs that
-   *  bunch up far away and race toward you, and falling green digital-rain streaks. Read as an
-   *  angled-from-above camera looking down a receding grid. Matrix green is fixed (not palette). */
-  private drawGridRoad(songMs: number, beatPulse: number, moodNorm: number, comboGlow: number): void {
+  /** A full synthwave / retrowave scene BEHIND the flat note grid: a neon grid road flowing toward
+   *  the viewer, a banded retro SUN on the horizon, glowing wireframe MOUNTAINS, and a STARFIELD —
+   *  the note grid floats above it (lo-fi music-video look). The grid stays matrix-green; the sun,
+   *  mountains and reflection take the song's palette so each track gets its own neon sky. No car. */
+  private drawGridRoad(cw: ReturnType<typeof moodColorway>, songMs: number, beatPulse: number, moodNorm: number, comboGlow: number): void {
     const ctx = this.ctx;
     const top = this.receptorY - this.laneW * 0.7; // horizon (far)
     const bot = this.spawnY + 30; // near / viewer
@@ -939,11 +939,94 @@ export class GameEngine {
     const GREEN: RGB = [46, 255, 128];
     const DIM: RGB = [18, 132, 70];
     const RAIN: RGB = [150, 255, 180];
+    const sunCol = cw.glow;
+    const sunHot = lightenRGB(cw.glow, 0.85);
+    const mtnCol = lightenRGB(cw.note, 0.35);
     const pulse = 0.6 + beatPulse * 0.4;
-    // Outermost rail offset from center (rails fan out past the lane edges at the near plane).
     const fOuter = this.laneW * (this.laneCount / 2 + 3); // wider near plane = more head-on road
     const depthX = (f: number, sf: number) => cx + f * (0.012 + 0.988 * sf); // tighter vanishing point
+    const skyTop = Math.max(this.gaugeY + 14, top - this.h * 0.14); // sky band above the horizon
 
+    // ======================= SKY (farthest — sun, mountains, stars) ===================
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, skyTop, this.w, top - skyTop);
+    ctx.clip();
+    // Dark sky with a warm glow pooling at the horizon.
+    const sky = ctx.createLinearGradient(0, skyTop, 0, top);
+    sky.addColorStop(0, 'rgba(0,1,6,0.92)');
+    sky.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.55), 0.85));
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, skyTop, this.w, top - skyTop);
+
+    // Stars (deterministic positions, twinkling).
+    ctx.globalCompositeOperation = 'lighter';
+    for (let s = 0; s < 46; s++) {
+      const sx = (Math.sin(s * 12.9898) * 0.5 + 0.5) * this.w;
+      const sy = skyTop + (Math.sin(s * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.92;
+      const tw = 0.4 + 0.6 * (Math.sin(songMs / 600 + s) * 0.5 + 0.5);
+      ctx.fillStyle = `rgba(220,240,255,${0.5 * tw})`;
+      ctx.fillRect(sx, sy, 1.4, 1.4);
+    }
+
+    // Banded retro SUN rising from the horizon — wide radius so a big, prominent half-sun fills the
+    // horizon (most of the disc sits below it, the classic synthwave sunset).
+    const sunR = this.laneW * 1.35;
+    const sunGlow = ctx.createRadialGradient(cx, top, 0, cx, top, sunR * 1.7);
+    sunGlow.addColorStop(0, rgbCss(sunHot, 0.6 * pulse + comboGlow * 0.2));
+    sunGlow.addColorStop(0.5, rgbCss(sunCol, 0.28 * pulse));
+    sunGlow.addColorStop(1, rgbCss(sunCol, 0));
+    ctx.fillStyle = sunGlow;
+    ctx.fillRect(0, skyTop, this.w, top - skyTop);
+    // Sun disc.
+    ctx.globalCompositeOperation = 'source-over';
+    const disc = ctx.createLinearGradient(cx, top - sunR, cx, top);
+    disc.addColorStop(0, rgbCss(sunHot, 1));
+    disc.addColorStop(0.55, rgbCss(sunCol, 1));
+    disc.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.2), 1));
+    ctx.fillStyle = disc;
+    ctx.beginPath();
+    ctx.arc(cx, top, sunR, Math.PI, 2 * Math.PI);
+    ctx.fill();
+    // Scanline bands cut across the lower part of the sun (classic synthwave sun).
+    ctx.fillStyle = 'rgba(0,1,6,0.92)';
+    for (let b = 0; b < 9; b++) {
+      const by = top - (b * b) * (sunR * 0.012) - 1;
+      const bh = 1.5 + b * 0.6;
+      if (by < top - sunR) break;
+      ctx.fillRect(cx - sunR, by - bh, sunR * 2, bh);
+    }
+
+    // Glowing wireframe MOUNTAINS along the horizon (far dim ridge, near bright ridge).
+    const drawRidge = (maxH: number, col: RGB, alpha: number, seedOff: number, lw: number) => {
+      const steps = 28;
+      ctx.beginPath();
+      ctx.moveTo(0, top);
+      for (let i = 0; i <= steps; i++) {
+        const x = (i / steps) * this.w;
+        const n =
+          Math.sin(i * 1.7 + seedOff) * 0.5 +
+          Math.sin(i * 0.6 + seedOff * 2) * 0.32 +
+          Math.sin(i * 3.3 + seedOff) * 0.18;
+        const hgt = maxH * (0.3 + 0.7 * (n * 0.5 + 0.5));
+        ctx.lineTo(x, top - hgt);
+      }
+      ctx.lineTo(this.w, top);
+      ctx.closePath();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(0,1,5,0.95)'; // black silhouette
+      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = rgbCss(col, alpha);
+      ctx.lineWidth = lw;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    };
+    drawRidge((top - skyTop) * 0.95, darkenRGB(mtnCol, 0.2), 0.4 * pulse, 2.1, 1.3); // far
+    drawRidge((top - skyTop) * 0.62, mtnCol, 0.72 * pulse + comboGlow * 0.15, 11.3, 1.8); // near
+    ctx.restore();
+
+    // ============================ ROAD FLOOR ==========================================
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, top, this.w, h);
@@ -951,9 +1034,9 @@ export class GameEngine {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // 1) Black floor — darkest at the horizon so the grid recedes into black.
+    // Black floor — darkest at the horizon so the grid recedes into black.
     const floor = ctx.createLinearGradient(0, top, 0, bot);
-    floor.addColorStop(0, 'rgba(0,0,0,0.9)');
+    floor.addColorStop(0, 'rgba(0,0,0,0.92)');
     floor.addColorStop(0.5, 'rgba(0,8,3,0.78)');
     floor.addColorStop(1, 'rgba(0,12,5,0.5)');
     ctx.fillStyle = floor;
@@ -961,9 +1044,20 @@ export class GameEngine {
 
     ctx.globalCompositeOperation = 'lighter';
 
-    // 2) Converging vertical rails — near ends sit on (and beyond) the note-grid lines, meeting at
-    //    the vanishing point (cx, top).
-    // Doubled rail density (half-lane steps) for finer, higher-quality perspective detail.
+    // Sun reflection shimmering down the floor (palette-colored, narrow at horizon, widening to you).
+    const refl = ctx.createLinearGradient(0, top, 0, bot);
+    refl.addColorStop(0, rgbCss(sunHot, 0.18 * pulse));
+    refl.addColorStop(1, rgbCss(sunCol, 0));
+    ctx.fillStyle = refl;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, top);
+    ctx.lineTo(cx + 3, top);
+    ctx.lineTo(cx + this.laneW * 0.85, bot);
+    ctx.lineTo(cx - this.laneW * 0.85, bot);
+    ctx.closePath();
+    ctx.fill();
+
+    // Converging vertical rails (half-lane density for finer detail).
     for (let i = -3; i <= this.laneCount + 3; i += 0.5) {
       const major = Number.isInteger(i);
       const xBot = i * this.laneW;
@@ -977,28 +1071,24 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // 3) Flowing horizontal rungs — bunched at the horizon, racing toward the viewer. Doubled
-    //    count + a soft bloom underlay per rung for smoother, higher-quality lines (x2). A steeper
-    //    perspective curve makes the road rush more head-on at the player.
+    // Flowing horizontal rungs — bunched at the horizon, racing head-on toward the viewer.
     const rungs = 40;
     const speed = 0.00022 + moodNorm * 0.0003;
     const phase = ((songMs * speed) % 1 + 1) % 1;
     for (let i = 0; i < rungs; i++) {
-      const p = (i / rungs + phase) % 1; // 0 far → 1 near
-      const sf = Math.pow(p, 2.85); // steeper = road comes more directly at you
+      const p = (i / rungs + phase) % 1;
+      const sf = Math.pow(p, 2.85);
       const y = top + h * sf;
       const halfW = fOuter * (0.012 + 0.988 * sf);
       const a = (0.035 + 0.52 * sf) * pulse + comboGlow * 0.12;
       const col = sf > 0.5 ? GREEN : DIM;
-      // soft bloom underlay
-      ctx.strokeStyle = rgbCss(col, a * 0.5);
+      ctx.strokeStyle = rgbCss(col, a * 0.5); // bloom underlay
       ctx.lineWidth = 2 + sf * 5;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
       ctx.lineTo(cx + halfW, y);
       ctx.stroke();
-      // bright core
-      ctx.strokeStyle = rgbCss(col, a);
+      ctx.strokeStyle = rgbCss(col, a); // bright core
       ctx.lineWidth = 0.7 + sf * 2.2;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
@@ -1006,11 +1096,11 @@ export class GameEngine {
       ctx.stroke();
     }
 
-    // 4) Digital rain — bright green streaks falling down the perspective toward you (doubled).
+    // Digital rain — bright streaks falling down the perspective toward you.
     const drops = this.laneCount * 9;
     for (let d = 0; d < drops; d++) {
       const seed = d * 1.37;
-      const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5; // deterministic lateral position
+      const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5;
       const f = (lane01 - 0.5) * 2 * fOuter;
       const t = ((songMs * (0.0003 + Math.abs(Math.sin(seed)) * 0.00018)) + (seed % 1)) % 1;
       const sf = Math.pow(t, 2.6);
@@ -1024,48 +1114,17 @@ export class GameEngine {
       ctx.lineTo(x, y);
       ctx.stroke();
     }
+    ctx.restore();
 
-    // 5) Lo-fi horizon: distance fog, a glowing "sun" on the vanishing point, a crisp horizon line,
-    //    and a reflection shimmering down the near floor — the "road into the sunset" read.
-    // Distance fog so the far floor dissolves into the horizon (depth).
-    const fog = ctx.createLinearGradient(0, top, 0, top + h * 0.3);
-    fog.addColorStop(0, rgbCss(GREEN, 0.16 * pulse + comboGlow * 0.06));
-    fog.addColorStop(1, rgbCss(GREEN, 0));
-    ctx.fillStyle = fog;
-    ctx.fillRect(0, top, this.w, h * 0.3);
-
-    // Sun / horizon glow sitting on the vanishing point.
-    const sunR = this.laneW * 1.5;
-    const sun = ctx.createRadialGradient(cx, top, 0, cx, top, sunR);
-    sun.addColorStop(0, rgbCss([190, 255, 215], 0.55 * pulse + comboGlow * 0.25));
-    sun.addColorStop(0.4, rgbCss(GREEN, 0.3 * pulse + comboGlow * 0.12));
-    sun.addColorStop(1, rgbCss(GREEN, 0));
-    ctx.fillStyle = sun;
-    ctx.beginPath();
-    ctx.arc(cx, top, sunR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Reflection of the sun shimmering down the floor (narrow at the horizon, widening toward you).
-    const refl = ctx.createLinearGradient(0, top, 0, bot);
-    refl.addColorStop(0, rgbCss([170, 255, 205], 0.14 * pulse));
-    refl.addColorStop(1, rgbCss(GREEN, 0));
-    ctx.fillStyle = refl;
-    ctx.beginPath();
-    ctx.moveTo(cx - 3, top);
-    ctx.lineTo(cx + 3, top);
-    ctx.lineTo(cx + this.laneW * 0.7, bot);
-    ctx.lineTo(cx - this.laneW * 0.7, bot);
-    ctx.closePath();
-    ctx.fill();
-
-    // Bright horizon line.
-    ctx.strokeStyle = rgbCss([200, 255, 220], 0.5 * pulse + comboGlow * 0.2);
+    // Bright horizon line sealing the sky to the floor.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = rgbCss(sunHot, 0.55 * pulse + comboGlow * 0.2);
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(0, top);
     ctx.lineTo(this.w, top);
     ctx.stroke();
-
     ctx.restore();
   }
 
