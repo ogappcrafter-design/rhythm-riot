@@ -3,6 +3,7 @@ import { WordArt } from '../components/WordArt';
 import { IconChart, IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
 import { TRACKS } from '../data/tracks';
 import { sfx } from '../audio/sfx';
+import { isPlayPromptSeen } from '../state/storage';
 
 /** Home / Main Menu (spec 8.1). Play, Song Select, Settings, Help. */
 export function MainMenu() {
@@ -10,6 +11,11 @@ export function MainMenu() {
   const tap = (r: Parameters<typeof navigate>[0]) => {
     sfx.play('uiTap');
     navigate(r);
+  };
+  // First time hitting PLAY → the "learn the ropes?" prompt before the song list; after that, songs.
+  const onPlay = () => {
+    sfx.play('uiTap');
+    navigate(isPlayPromptSeen() ? { name: 'songselect' } : { name: 'playprompt' });
   };
 
   return (
@@ -28,7 +34,7 @@ export function MainMenu() {
       </div>
 
       <div className="stack" style={{ width: 'min(420px, 88vw)', marginTop: 8 }}>
-        <button className="btn btn-primary btn-block row" style={{ justifyContent: 'center', gap: 10, fontSize: 20, padding: '18px' }} onClick={() => tap({ name: 'songselect' })}>
+        <button className="btn btn-primary btn-block row" style={{ justifyContent: 'center', gap: 10, fontSize: 20, padding: '18px' }} onClick={onPlay}>
           <IconPlay size={22} color="#fff" /> PLAY
         </button>
         <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'profile' })}>

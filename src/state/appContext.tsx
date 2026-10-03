@@ -14,6 +14,7 @@ export type Route =
   | { name: 'settings' }
   | { name: 'help' }
   | { name: 'tutorial' }
+  | { name: 'playprompt' }
   | { name: 'profile' }
   | { name: 'calibration' };
 

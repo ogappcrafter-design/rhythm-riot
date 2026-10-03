@@ -326,7 +326,15 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
         <div className="hud">
           <div className="hud-top">
             <div className="hud-score">
-              <div className="hud-score-val">{hud.score.toLocaleString()}</div>
+              <div className="hud-score-val" aria-label={`Score ${hud.score}`}>
+                {hud.score.toLocaleString().split('').map((ch, i) =>
+                  ch === ',' ? (
+                    <span key={i} className="flap-sep">,</span>
+                  ) : (
+                    <span key={i} className="flap">{ch}</span>
+                  ),
+                )}
+              </div>
               <div className="hud-acc">{hud.accuracy.toFixed(1)}%</div>
             </div>
             <div className="hud-progress">

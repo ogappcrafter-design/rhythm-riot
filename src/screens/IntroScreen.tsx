@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/appContext';
-import { markIntroSeen, isTutorialSeen } from '../state/storage';
+import { markIntroSeen } from '../state/storage';
 import { WordArt } from '../components/WordArt';
 import { IconRiotShard } from '../components/icons';
 import { sfx } from '../audio/sfx';
@@ -32,9 +32,9 @@ export function IntroScreen() {
     done.current = true;
     markIntroSeen();
     setPhase('out');
-    // First-ever launch → run the tutorial so new players learn tap / hold / slide first.
-    const dest = isTutorialSeen() ? 'menu' : 'tutorial';
-    setTimeout(() => navigate({ name: dest }), 520);
+    // Always land on the menu; the first-time "learn the ropes?" prompt gates the tutorial when the
+    // player hits PLAY (so new players are nudged into it right before the song list).
+    setTimeout(() => navigate({ name: 'menu' }), 520);
   };
 
   useEffect(() => {

@@ -120,8 +120,9 @@ const NOTE_COLORS: RGB[] = [
   [255, 214, 64],
   [72, 232, 120],
 ];
-const FREEZE_BODY: RGB = [86, 235, 132]; // freeze (hold) bodies — green when held
-const FREEZE_FAIL: RGB = [255, 60, 80]; // freeze turns red when you drop it
+const HOLD_BODY: RGB = [64, 255, 242]; // hold (freeze) bodies — bright electric cyan, glowing hot
+const SLIDE_BODY: RGB = [255, 108, 220]; // slide bodies — hot neon magenta, clearly different from holds
+const FREEZE_FAIL: RGB = [255, 60, 80]; // a sustain turns red when you drop it
 
 // Bright hues cycled through notes once the player passes a 100 combo.
 const RAINBOW: RGB[] = [
@@ -167,6 +168,7 @@ export class GameEngine {
   private activeSustains: RuntimeNote[] = []; // holds + slides currently being held
 
   private flowStars: FlowStar[] = [];
+  private sparkRings: { x: number; y: number; t0: number }[] = []; // brief gold-dust fizzle on each hit
   private dotSprites = new Map<number, HTMLCanvasElement>();
   private swirlSprites = new Map<number, HTMLCanvasElement>();
   private starSprites = new Map<number, HTMLCanvasElement>(); // glowing 3D stars (100+ combo)
@@ -440,6 +442,9 @@ export class GameEngine {
       const comboMul = 1 + (Math.min(this.combo, 100) / 100) * 0.5;
       this.score += Math.round(JUDGEMENT_SCORE[j] * comboMul);
       this.hitPop[n.lane] = 1; // step-zone explosion
+      // Brief gold-dust fizzle ring right where the note was hit (the orb "sparkles out").
+      this.sparkRings.push({ x, y: this.receptorY, t0: performance.now() });
+      if (this.sparkRings.length > 40) this.sparkRings.shift();
       this.comboPop = Math.max(this.comboPop, 1); // combo-counter kick
       // MARVELOUS is a cosmetic top tier for a very tight Perfect.
       const marvelous = j === 'perfect' && err <= this.diffChart.hitWindowMs.perfect * 0.5;
@@ -898,6 +903,7 @@ export class GameEngine {
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs);
     this.drawReceptors(cw, moodNorm, beatPulse);
+    this.drawHitSparks(performance.now());
     this.drawGauge(cw, moodNorm);
     if (this.combo >= 50) this.drawSideSparkles(songMs);
     this.drawCombo(moodNorm, cw.glow);
@@ -943,8 +949,8 @@ export class GameEngine {
     const sunHot = lightenRGB(cw.glow, 0.85);
     const mtnCol = lightenRGB(cw.note, 0.35);
     const pulse = 0.6 + beatPulse * 0.4;
-    const fOuter = this.laneW * (this.laneCount / 2 + 3); // wider near plane = more head-on road
-    const depthX = (f: number, sf: number) => cx + f * (0.012 + 0.988 * sf); // tighter vanishing point
+    const fOuter = this.laneW * (this.laneCount / 2 + 4.5); // very wide near plane = road opens up at you
+    const depthX = (f: number, sf: number) => cx + f * (0.006 + 0.994 * sf); // strong convergence to a point
     const skyTop = Math.max(this.gaugeY + 14, top - this.h * 0.14); // sky band above the horizon
 
     // ======================= SKY (farthest — sun, mountains, stars) ===================
@@ -1060,47 +1066,48 @@ export class GameEngine {
     ctx.closePath();
     ctx.fill();
 
-    // Converging vertical rails (quarter-lane density — x3 finer perspective detail).
-    for (let i = -3; i <= this.laneCount + 3; i += 0.25) {
-      const major = Number.isInteger(i);
+    // Converging vertical rails — FEW, WIDE, thick neon lines that strongly converge to the
+    // vanishing point (like the reference clips: a big road you're flying straight down).
+    for (let i = -2; i <= this.laneCount + 2; i += 1) {
       const xBot = i * this.laneW;
       const f = xBot - cx;
-      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 0.85));
-      ctx.strokeStyle = rgbCss(GREEN, (0.03 + (major ? 0.11 : 0.05) * edgeFade) * pulse + comboGlow * 0.05);
-      ctx.lineWidth = (major ? 1.4 : 0.8) + edgeFade * 1.2;
+      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 1.1));
+      ctx.strokeStyle = rgbCss(GREEN, (0.06 + 0.2 * edgeFade) * pulse + comboGlow * 0.07);
+      ctx.lineWidth = 1.8 + edgeFade * 2.2;
       ctx.beginPath();
       ctx.moveTo(depthX(f, 0), top);
       ctx.lineTo(xBot, bot);
       ctx.stroke();
     }
 
-    // Flowing horizontal rungs — bunched at the horizon, racing head-on toward the viewer (x3 denser).
-    const rungs = 72;
-    const speed = 0.00022 + moodNorm * 0.0003;
+    // Flowing horizontal rungs — FEW and WIDE APART, with a very steep perspective curve so the
+    // cells are tiny at the horizon and huge up close, rushing head-on at you (flying down the road).
+    const rungs = 15;
+    const speed = 0.00036 + moodNorm * 0.00042; // faster = stronger "coming at you"
     const phase = ((songMs * speed) % 1 + 1) % 1;
     for (let i = 0; i < rungs; i++) {
       const p = (i / rungs + phase) % 1;
-      const sf = Math.pow(p, 2.85);
+      const sf = Math.pow(p, 3.5); // very steep bunching → big near cells
       const y = top + h * sf;
-      const halfW = fOuter * (0.012 + 0.988 * sf);
-      const a = (0.035 + 0.52 * sf) * pulse + comboGlow * 0.12;
-      const col = sf > 0.5 ? GREEN : DIM;
+      const halfW = fOuter * (0.006 + 0.994 * sf);
+      const a = (0.03 + 0.6 * sf) * pulse + comboGlow * 0.12;
+      const col = sf > 0.45 ? GREEN : DIM;
       ctx.strokeStyle = rgbCss(col, a * 0.5); // bloom underlay
-      ctx.lineWidth = 2 + sf * 5;
+      ctx.lineWidth = 2 + sf * 6;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
       ctx.lineTo(cx + halfW, y);
       ctx.stroke();
       ctx.strokeStyle = rgbCss(col, a); // bright core
-      ctx.lineWidth = 0.7 + sf * 2.2;
+      ctx.lineWidth = 0.8 + sf * 2.6;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
       ctx.lineTo(cx + halfW, y);
       ctx.stroke();
     }
 
-    // Digital rain — bright streaks falling down the perspective toward you (x3 denser).
-    const drops = this.laneCount * 16;
+    // Digital rain — subtle streaks falling down the perspective toward you.
+    const drops = this.laneCount * 6;
     for (let d = 0; d < drops; d++) {
       const seed = d * 1.37;
       const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5;
@@ -1248,19 +1255,23 @@ export class GameEngine {
       const bot = Math.max(yHead, yTail);
       const r = wBar / 2;
       const pulse = active ? 0.78 + 0.22 * Math.sin(songMs / 80) : 1;
-      const body = broken ? FREEZE_FAIL : FREEZE_BODY;
+      const body = broken ? FREEZE_FAIL : HOLD_BODY;
 
       ctx.save();
       if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
+      // Hot outer glow so the hold reads unmistakably as a special note.
+      ctx.shadowColor = rgbCss(lightenRGB(body, 0.5), 1);
+      ctx.shadowBlur = (active ? 26 : 16) * pulse;
       const grad = ctx.createLinearGradient(0, top, 0, bot);
-      grad.addColorStop(0, rgbCss(lightenRGB(body, 0.2), (active ? 0.95 : 0.72) * pulse));
-      grad.addColorStop(1, rgbCss(darkenRGB(body, 0.25), active ? 0.9 : 0.6));
+      grad.addColorStop(0, rgbCss(lightenRGB(body, 0.55), (active ? 1 : 0.9) * pulse));
+      grad.addColorStop(1, rgbCss(body, active ? 0.95 : 0.8));
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.roundRect(x - r, top, wBar, Math.max(4, bot - top), r);
       ctx.fill();
-      ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.6 : 0.3), active ? 0.95 : 0.7);
-      ctx.lineWidth = active ? 4 : 2.5;
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.85);
+      ctx.lineWidth = active ? 4 : 3;
       ctx.stroke();
       // Flowing shimmer down the body (arrows off when broken).
       if (!broken) {
@@ -1360,7 +1371,7 @@ export class GameEngine {
     const endT = Math.min(n.holdEndMs, tapMs + APPROACH_MS);
     if (endT <= startT) return;
     const wBar = this.laneW * 0.3;
-    const body = broken ? FREEZE_FAIL : FREEZE_BODY;
+    const body = broken ? FREEZE_FAIL : SLIDE_BODY;
     const N = 20;
     const pts: [number, number][] = [];
     for (let i = 0; i <= N; i++) {
@@ -1374,12 +1385,16 @@ export class GameEngine {
     ctx.lineCap = 'round';
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    // Hot glow so the slide ribbon pops as a special drag note.
+    ctx.shadowColor = rgbCss(lightenRGB(body, 0.5), 1);
+    ctx.shadowBlur = active ? 26 : 16;
     // Thick body.
-    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.35 : 0.18), active ? 0.92 : 0.66);
+    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.45 : 0.3), active ? 0.95 : 0.8);
     ctx.lineWidth = wBar;
     ctx.stroke();
+    ctx.shadowBlur = 0;
     // Bright core.
-    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.8 : 0.55), active ? 0.95 : 0.75);
+    ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.9);
     ctx.lineWidth = wBar * 0.34;
     ctx.stroke();
     // Flowing shimmer (off when broken).
@@ -1388,6 +1403,47 @@ export class GameEngine {
       ctx.lineDashOffset = (songMs / 10) % 21;
       ctx.strokeStyle = `rgba(255,255,255,${active ? 0.65 : 0.4})`;
       ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** A brief, premium gold-dust "fizzle" ring right where a note was hit — the orb sparkles out.
+   *  Shows for a fraction of a second, slightly smaller than the orb, additive gold for a 3D glow. */
+  private drawHitSparks(now: number): void {
+    if (!this.sparkRings.length) return;
+    const ctx = this.ctx;
+    const LIFE = 165;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = this.sparkRings.length - 1; i >= 0; i--) {
+      const s = this.sparkRings[i];
+      const age = now - s.t0;
+      if (age >= LIFE) {
+        this.sparkRings.splice(i, 1);
+        continue;
+      }
+      const k = age / LIFE;
+      const ease = 1 - Math.pow(1 - k, 2);
+      const rad = this.laneW * (0.15 + 0.17 * ease); // slightly smaller than the orb, expands a touch
+      const fade = Math.pow(1 - k, 1.5);
+      const n = 18;
+      for (let p = 0; p < n; p++) {
+        const ang = (p / n) * Math.PI * 2 + s.t0 * 0.0007;
+        const jr = rad * (0.88 + 0.22 * Math.sin(p * 3.1 + s.t0));
+        const px = s.x + Math.cos(ang) * jr;
+        const py = s.y + Math.sin(ang) * jr;
+        const sz = (1.4 + 1.3 * (Math.sin(p * 1.7) * 0.5 + 0.5)) * (0.55 + fade);
+        ctx.fillStyle = `rgba(255,226,150,${0.72 * fade})`;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.5, sz), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Thin bright ring outline for the crisp "sparkle out" read.
+      ctx.strokeStyle = `rgba(255,240,200,${0.4 * fade})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, rad, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();

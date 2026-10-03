@@ -80,6 +80,8 @@ export interface SaveData {
   introSeen: boolean;
   calibrationDone: boolean;
   tutorialSeen: boolean;
+  /** True once the first-play "learn the ropes?" prompt has been answered. */
+  playPromptSeen: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -99,6 +101,7 @@ function defaultSave(): SaveData {
     introSeen: false,
     calibrationDone: false,
     tutorialSeen: false,
+    playPromptSeen: false,
   };
 }
 
@@ -270,5 +273,14 @@ export function isTutorialSeen(): boolean {
 
 export function markTutorialSeen(): void {
   loadSave().tutorialSeen = true;
+  persist();
+}
+
+export function isPlayPromptSeen(): boolean {
+  return loadSave().playPromptSeen;
+}
+
+export function markPlayPromptSeen(): void {
+  loadSave().playPromptSeen = true;
   persist();
 }

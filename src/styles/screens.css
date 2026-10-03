@@ -412,13 +412,51 @@
   pointer-events: auto;
 }
 .hud-score { min-width: 110px; }
+/* Pop-art split-flap / analog-clock score readout: bold bright amber digits on dark flap cards. */
 .hud-score-val {
-  font-size: 26px;
+  display: inline-flex;
+  gap: 2px;
+  align-items: stretch;
+}
+.hud-score-val .flap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.78em;
+  padding: 2px 3px 3px;
+  font-family: 'DS-Digital', 'Courier New', ui-monospace, monospace;
+  font-size: 30px;
   font-weight: 900;
-  font-style: italic;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.5px;
-  text-shadow: 0 0 14px rgba(124, 92, 255, 0.7), 0 2px 4px rgba(0, 0, 0, 0.5);
+  line-height: 1;
+  color: #ffd24a;
+  background: linear-gradient(180deg, #1b1a24 0%, #0c0b14 48%, #15141d 52%, #050509 100%);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 210, 74, 0.28);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(255, 180, 40, 0.18);
+  text-shadow: 0 0 10px rgba(255, 196, 60, 0.9), 0 0 22px rgba(255, 140, 20, 0.6);
+}
+/* The split-flap seam across the middle of each digit card. */
+.hud-score-val .flap::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.hud-score-val .flap-sep {
+  display: inline-flex;
+  align-items: flex-end;
+  padding: 0 1px 4px;
+  font-weight: 900;
+  font-size: 26px;
+  color: #ffd24a;
+  text-shadow: 0 0 10px rgba(255, 196, 60, 0.8);
 }
 .hud-acc {
   font-size: 12px;
@@ -1164,16 +1202,16 @@
   position: absolute;
   left: -60%; right: -60%; top: 60%; height: 90%;
   background-image:
-    repeating-linear-gradient(90deg, rgba(72, 255, 200, 0.55) 0 1.5px, transparent 1.5px 6.5%),
-    repeating-linear-gradient(0deg, rgba(72, 255, 200, 0.55) 0 1.5px, transparent 1.5px 7%);
-  transform: perspective(300px) rotateX(81deg);
+    repeating-linear-gradient(90deg, rgba(72, 255, 200, 0.6) 0 2px, transparent 2px 15%),
+    repeating-linear-gradient(0deg, rgba(72, 255, 200, 0.6) 0 2px, transparent 2px 17%);
+  transform: perspective(210px) rotateX(84deg);
   transform-origin: top center;
-  animation: synth-floor 3.2s linear infinite;
+  animation: synth-floor 2.4s linear infinite;
   will-change: background-position;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 100%);
-          mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 100%);
+          mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 100%);
 }
-@keyframes synth-floor { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 200px; } }
+@keyframes synth-floor { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 260px; } }
 .synth-horizon {
   position: absolute; left: 0; right: 0; top: calc(62% - 1px); height: 2px;
   background: #fff6cf;
@@ -1186,3 +1224,57 @@
 @media (prefers-reduced-motion: reduce) {
   .synth-floor, .synth-stars { animation: none; }
 }
+
+/* ===================== FIRST-PLAY "LEARN THE ROPES?" POPUP ===================== */
+.play-prompt {
+  position: relative;
+  width: min(440px, 90vw);
+  padding: 26px 22px 22px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(26, 18, 54, 0.92), rgba(10, 8, 24, 0.96));
+  border: 1px solid rgba(138, 180, 255, 0.35);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 44px rgba(124, 92, 255, 0.4), inset 0 0 26px rgba(80, 210, 255, 0.1);
+  backdrop-filter: blur(10px);
+  animation: pp-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes pp-in { from { opacity: 0; transform: translateY(16px) scale(0.92); } to { opacity: 1; transform: none; } }
+.play-prompt-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 24px;
+  pointer-events: none;
+  background: conic-gradient(from 0deg, #22d3ee, #7c5cff, #ff6ad5, #22d3ee);
+  filter: blur(14px);
+  opacity: 0.4;
+  z-index: -1;
+  animation: pp-spin 6s linear infinite;
+}
+@keyframes pp-spin { to { transform: rotate(360deg); } }
+.play-prompt-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-top: -52px;
+  margin-bottom: 8px;
+  background: radial-gradient(circle at 35% 30%, #8ef0ff, #7c5cff 70%);
+  box-shadow: 0 0 26px rgba(124, 92, 255, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.4);
+}
+.play-prompt-copy {
+  margin: 12px 4px 4px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(226, 232, 255, 0.92);
+}
+.play-prompt-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 20px;
+}
+.play-prompt-actions .btn { flex: 1; }

@@ -367,16 +367,28 @@ function deconflictSlides(notes) {
 // collides visually with the body — this removes both. Sustains are always kept; only taps landing
 // during one are pruned.
 function clearHoldOverlaps(notes) {
-  const holds = notes.filter((n) => n.type === 'hold' || n.type === 'slide');
-  if (!holds.length) return notes;
-  const HEAD_GUARD = 30; // don't nuke a note sitting essentially on the hold's own onset frame
-  const TAIL_GUARD = 90; // let a note land right as the sustain releases
+  const sustains = notes.filter((n) => n.type === 'hold' || n.type === 'slide');
+  if (!sustains.length) return notes;
+  const HEAD_GUARD = 30; // don't nuke a note sitting essentially on the sustain's own onset frame
+  const TAIL_GUARD = 90; // holds: let a note land right as the freeze releases
+  // Slides: a tap sitting exactly on the slide's END POINT (same lane, at the finish time) is the
+  // satisfying "cap" that completes the drag — keep those. Any OTHER note overlapping a slide (a
+  // different lane, or mid-slide) is pruned through the whole span incl. the tail, so a stray note
+  // never shows up part-way or just-barely-at-the-end of a slide in the wrong spot.
+  const END_WINDOW = 120;
   return notes.filter((n) => {
     if (n.type === 'hold' || n.type === 'slide') return true;
-    for (const h of holds) {
+    for (const h of sustains) {
       const start = h.timeMs;
       const end = h.timeMs + (h.holdMs || 0);
-      if (n.timeMs >= start - HEAD_GUARD && n.timeMs <= end - TAIL_GUARD) return false;
+      if (h.type === 'slide') {
+        const endLane = h.endLane ?? h.lane;
+        const atEndPoint = n.lane === endLane && Math.abs(n.timeMs - end) <= END_WINDOW;
+        if (atEndPoint) continue; // the fun end-cap note — keep it
+        if (n.timeMs >= start - HEAD_GUARD && n.timeMs <= end + 30) return false;
+      } else if (n.timeMs >= start - HEAD_GUARD && n.timeMs <= end - TAIL_GUARD) {
+        return false;
+      }
     }
     return true;
   });
