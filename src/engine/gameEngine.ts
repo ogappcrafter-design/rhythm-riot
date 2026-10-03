@@ -893,6 +893,7 @@ export class GameEngine {
     // (notes become glowing swirling stars, grid glow maxes out).
     const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.7 : 0;
     this.drawPlayfield(cw, moodNorm, beatPulse);
+    this.drawGridRoad(songMs, beatPulse, moodNorm, comboGlow);
     this.drawLanes(cw, comboGlow, beatPulse, moodNorm);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     this.drawNotes(songMs);
@@ -921,6 +922,101 @@ export class GameEngine {
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = rgbCss(cw.glow, (0.05 + moodNorm * 0.08) * (0.4 + beatPulse * 0.6));
     ctx.fillRect(0, this.receptorY - this.laneW * 0.55, this.w, this.laneW * 1.1);
+    ctx.restore();
+  }
+
+  /** A Matrix-style perspective "road" that flows toward the viewer BEHIND the flat note grid:
+   *  a black floor with green rails converging to a horizon vanishing point, horizontal rungs that
+   *  bunch up far away and race toward you, and falling green digital-rain streaks. Read as an
+   *  angled-from-above camera looking down a receding grid. Matrix green is fixed (not palette). */
+  private drawGridRoad(songMs: number, beatPulse: number, moodNorm: number, comboGlow: number): void {
+    const ctx = this.ctx;
+    const top = this.receptorY - this.laneW * 0.7; // horizon (far)
+    const bot = this.spawnY + 30; // near / viewer
+    const h = bot - top;
+    if (h <= 10) return;
+    const cx = this.w / 2;
+    const GREEN: RGB = [46, 255, 128];
+    const DIM: RGB = [18, 132, 70];
+    const RAIN: RGB = [150, 255, 180];
+    const pulse = 0.6 + beatPulse * 0.4;
+    // Outermost rail offset from center (rails fan out past the lane edges at the near plane).
+    const fOuter = this.laneW * (this.laneCount / 2 + 2);
+    const depthX = (f: number, sf: number) => cx + f * (0.02 + 0.98 * sf); // x of a rail at depth sf
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, top, this.w, h);
+    ctx.clip();
+
+    // 1) Black floor — darkest at the horizon so the grid recedes into black.
+    const floor = ctx.createLinearGradient(0, top, 0, bot);
+    floor.addColorStop(0, 'rgba(0,0,0,0.9)');
+    floor.addColorStop(0.5, 'rgba(0,8,3,0.78)');
+    floor.addColorStop(1, 'rgba(0,12,5,0.5)');
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, top, this.w, h);
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    // 2) Converging vertical rails — near ends sit on (and beyond) the note-grid lines, meeting at
+    //    the vanishing point (cx, top).
+    for (let i = -2; i <= this.laneCount + 2; i++) {
+      const xBot = i * this.laneW;
+      const f = xBot - cx;
+      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 0.72));
+      ctx.strokeStyle = rgbCss(GREEN, (0.045 + 0.11 * edgeFade) * pulse + comboGlow * 0.05);
+      ctx.lineWidth = 1 + edgeFade * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(depthX(f, 0), top);
+      ctx.lineTo(xBot, bot);
+      ctx.stroke();
+    }
+
+    // 3) Flowing horizontal rungs — bunched at the horizon, racing toward the viewer.
+    const rungs = 22;
+    const speed = 0.00016 + moodNorm * 0.00024;
+    const phase = ((songMs * speed) % 1 + 1) % 1;
+    for (let i = 0; i < rungs; i++) {
+      const p = (i / rungs + phase) % 1; // 0 far → 1 near
+      const sf = Math.pow(p, 2.4); // perspective bunching
+      const y = top + h * sf;
+      const halfW = fOuter * (0.02 + 0.98 * sf);
+      const a = (0.04 + 0.5 * sf) * pulse + comboGlow * 0.12;
+      ctx.strokeStyle = rgbCss(sf > 0.55 ? GREEN : DIM, a);
+      ctx.lineWidth = 0.8 + sf * 2.4;
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW, y);
+      ctx.lineTo(cx + halfW, y);
+      ctx.stroke();
+    }
+
+    // 4) Digital rain — bright green streaks falling down the perspective toward you.
+    const drops = this.laneCount * 5;
+    for (let d = 0; d < drops; d++) {
+      const seed = d * 1.37;
+      const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5; // deterministic lateral position
+      const f = (lane01 - 0.5) * 2 * fOuter;
+      const t = ((songMs * (0.00022 + Math.abs(Math.sin(seed)) * 0.00014)) + (seed % 1)) % 1;
+      const sf = Math.pow(t, 2.2);
+      const y = top + h * sf;
+      const x = depthX(f, sf);
+      const len = 6 + sf * 24;
+      ctx.strokeStyle = rgbCss(RAIN, (0.1 + 0.6 * sf) * pulse);
+      ctx.lineWidth = 0.8 + sf * 1.8;
+      ctx.beginPath();
+      ctx.moveTo(x, y - len);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    // 5) Glowing horizon band where the road vanishes.
+    const hz = ctx.createLinearGradient(0, top, 0, top + h * 0.2);
+    hz.addColorStop(0, rgbCss(GREEN, 0.2 * pulse + comboGlow * 0.1));
+    hz.addColorStop(1, rgbCss(GREEN, 0));
+    ctx.fillStyle = hz;
+    ctx.fillRect(0, top, this.w, h * 0.2);
+
     ctx.restore();
   }
 
