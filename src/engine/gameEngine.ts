@@ -1058,48 +1058,43 @@ export class GameEngine {
     const pulse = 0.55 + beatPulse * 0.45; // 0.55..1 across the beat (always clearly lit)
     const baseGlow = (0.2 + moodNorm * 0.16) * pulse + comboGlow * 0.22;
 
-    // ---- Flowy, glowing lane lines --------------------------------------------
-    // Thicker, gently UNDULATING vertical lines so the note grid reads clearly in FRONT of the
-    // straight perspective road behind it (the road now owns the horizontal lattice). Three passes:
-    // wide green bloom, bright green core, and a crisp mint keyline on top.
-    const span = bot - top;
-    const t = performance.now();
-    const amp = this.laneW * 0.06;
-    const wavy = (x: number, phase: number) => {
+    // ---- Thick, GLOWING lane lines --------------------------------------------
+    // Straight vertical lines with a strong multi-pass bloom (wide halo → mid glow → bright core)
+    // so they read as luminous bars clearly in FRONT of the perspective road behind them (the road
+    // owns the horizontal lattice now). Finished with a crisp mint keyline.
+    const drawLine = (x: number) => {
       ctx.beginPath();
-      const steps = 20;
-      for (let s = 0; s <= steps; s++) {
-        const fy = s / steps;
-        const y = top + span * fy;
-        const wx = x + amp * Math.sin(fy * 6.3 + t / 620 + phase);
-        if (s === 0) ctx.moveTo(wx, y);
-        else ctx.lineTo(wx, y);
-      }
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, bot);
     };
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i <= this.laneCount; i++) {
-      const phase = i * 1.7;
-      // wide soft bloom
-      wavy(i * this.laneW, phase);
-      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.5);
-      ctx.lineWidth = 11 + comboGlow * 9 + beatPulse * 5;
+      const x = i * this.laneW;
+      // 1) wide outer halo
+      drawLine(x);
+      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.4);
+      ctx.lineWidth = 20 + comboGlow * 12 + beatPulse * 8;
       ctx.stroke();
-      // bright green core
-      wavy(i * this.laneW, phase);
-      ctx.strokeStyle = rgbCss(glowC, baseGlow + 0.12);
-      ctx.lineWidth = 4.5 + comboGlow * 5 + beatPulse * 2;
+      // 2) mid glow
+      drawLine(x);
+      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.75);
+      ctx.lineWidth = 10 + comboGlow * 7 + beatPulse * 4;
+      ctx.stroke();
+      // 3) bright core
+      drawLine(x);
+      ctx.strokeStyle = rgbCss(glowC, baseGlow + 0.22);
+      ctx.lineWidth = 5.5 + comboGlow * 5 + beatPulse * 2;
       ctx.stroke();
     }
     ctx.restore();
     // Crisp mint keyline so the lanes stay razor-legible over the glow.
     for (let i = 0; i <= this.laneCount; i++) {
-      wavy(i * this.laneW, i * 1.7);
       const edge = i === 0 || i === this.laneCount;
-      ctx.strokeStyle = `rgba(214,255,228,${0.26 + comboGlow * 0.25})`;
-      ctx.lineWidth = edge ? 3.6 : 2.6;
+      drawLine(i * this.laneW);
+      ctx.strokeStyle = `rgba(214,255,228,${0.32 + comboGlow * 0.25})`;
+      ctx.lineWidth = edge ? 4.6 : 3.4;
       ctx.lineCap = 'round';
       ctx.stroke();
     }
