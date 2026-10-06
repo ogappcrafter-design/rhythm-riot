@@ -1328,26 +1328,27 @@
 
 .avatar-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 .avatar-cell {
   position: relative;
-  padding: 3px;
-  border-radius: 16px;
-  border: 2px solid transparent;
+  padding: 4px;
+  border-radius: 18px;
+  border: 3px solid transparent;
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
+  overflow: hidden;
 }
-.avatar-cell svg { width: 100%; height: 100%; border-radius: 12px; }
-.avatar-cell:active { transform: scale(0.92); }
+.avatar-cell .avatar-img { width: 100% !important; height: 100% !important; border-radius: 13px !important; border: none !important; box-shadow: none !important; }
+.avatar-cell:active { transform: scale(0.95); }
 .avatar-cell.is-sel {
   border-color: var(--sel, #22d3ee);
-  box-shadow: 0 0 16px var(--sel, #22d3ee);
+  box-shadow: 0 0 20px var(--sel, #22d3ee);
 }
 .profile-savebar {
   position: absolute;
@@ -1357,7 +1358,7 @@
   padding: 14px 16px calc(16px + var(--safe-bottom, 0px));
   background: linear-gradient(0deg, rgba(5, 4, 14, 0.95), rgba(5, 4, 14, 0));
 }
-@media (max-width: 360px) { .avatar-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 360px) { .avatar-grid { gap: 8px; } }
 
 /* ===================== LEADERBOARDS + CHALLENGES ===================== */
 .lb-tabs { display: flex; gap: 8px; margin-bottom: 4px; }
