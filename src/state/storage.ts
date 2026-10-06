@@ -82,6 +82,13 @@ export interface SaveData {
   tutorialSeen: boolean;
   /** True once the first-play "learn the ropes?" prompt has been answered. */
   playPromptSeen: boolean;
+  /** Minimal player profile (username + chosen avatar). Absent until the player sets it up. */
+  profile?: PlayerProfile;
+}
+
+export interface PlayerProfile {
+  username: string;
+  avatarId: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -282,5 +289,18 @@ export function isPlayPromptSeen(): boolean {
 
 export function markPlayPromptSeen(): void {
   loadSave().playPromptSeen = true;
+  persist();
+}
+
+export function getProfile(): PlayerProfile | undefined {
+  return loadSave().profile;
+}
+
+export function hasProfile(): boolean {
+  return !!loadSave().profile?.username;
+}
+
+export function saveProfile(profile: PlayerProfile): void {
+  loadSave().profile = { username: profile.username.slice(0, 16), avatarId: profile.avatarId };
   persist();
 }

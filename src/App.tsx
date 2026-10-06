@@ -14,6 +14,7 @@ import { CalibrationScreen } from './screens/CalibrationScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { SynthwaveBackground } from './components/SynthwaveBackground';
 import { PlayPromptScreen } from './screens/PlayPromptScreen';
+import { ProfileSetupScreen } from './screens/ProfileSetupScreen';
 
 /** Only gameplay paints its own full-screen background; everything else shares ONE persistent
  *  aurora so navigating between screens never flashes or restarts the background. */
@@ -68,6 +69,8 @@ export function App() {
         return <TutorialScreen />;
       case 'playprompt':
         return <PlayPromptScreen />;
+      case 'profilesetup':
+        return <ProfileSetupScreen firstRun={route.firstRun} />;
       case 'profile':
         return <ProfileScreen />;
       case 'calibration':

@@ -3,7 +3,8 @@ import { WordArt } from '../components/WordArt';
 import { IconChart, IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
 import { TRACKS } from '../data/tracks';
 import { sfx } from '../audio/sfx';
-import { isPlayPromptSeen } from '../state/storage';
+import { isPlayPromptSeen, getProfile } from '../state/storage';
+import { AvatarPic } from '../components/Avatar';
 
 /** Home / Main Menu (spec 8.1). Play, Song Select, Settings, Help. */
 export function MainMenu() {
@@ -18,8 +19,16 @@ export function MainMenu() {
     navigate(isPlayPromptSeen() ? { name: 'songselect' } : { name: 'playprompt' });
   };
 
+  const profile = getProfile();
+
   return (
     <div className="screen center" style={{ justifyContent: 'center', gap: 26 }}>
+      {profile && (
+        <button className="profile-chip" onClick={() => tap({ name: 'profilesetup' })} aria-label="Edit profile">
+          <AvatarPic id={profile.avatarId} size={34} ring={false} />
+          <span className="profile-chip-name">{profile.username}</span>
+        </button>
+      )}
       <div className="menu-logo">
         <div className="menu-mark">
           <IconRiotShard size={54} color="#7c5cff" />

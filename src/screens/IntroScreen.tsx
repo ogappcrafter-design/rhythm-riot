@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/appContext';
-import { markIntroSeen } from '../state/storage';
+import { markIntroSeen, hasProfile } from '../state/storage';
 import { WordArt } from '../components/WordArt';
 import { IconRiotShard } from '../components/icons';
 import { sfx } from '../audio/sfx';
@@ -32,9 +32,10 @@ export function IntroScreen() {
     done.current = true;
     markIntroSeen();
     setPhase('out');
-    // Always land on the menu; the first-time "learn the ropes?" prompt gates the tutorial when the
-    // player hits PLAY (so new players are nudged into it right before the song list).
-    setTimeout(() => navigate({ name: 'menu' }), 520);
+    // First run with no profile → create one; otherwise the menu. (The "learn the ropes?" prompt
+    // still gates the tutorial when the player hits PLAY.)
+    const dest = hasProfile() ? { name: 'menu' as const } : { name: 'profilesetup' as const, firstRun: true };
+    setTimeout(() => navigate(dest), 520);
   };
 
   useEffect(() => {

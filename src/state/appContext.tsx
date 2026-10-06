@@ -15,6 +15,7 @@ export type Route =
   | { name: 'help' }
   | { name: 'tutorial' }
   | { name: 'playprompt' }
+  | { name: 'profilesetup'; firstRun?: boolean }
   | { name: 'profile' }
   | { name: 'calibration' };
 
