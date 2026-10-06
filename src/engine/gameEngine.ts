@@ -1243,7 +1243,11 @@ export class GameEngine {
         this.drawSlideBody(n, tapMs, songMs, broken, brokenAge);
         continue;
       }
-      if (!broken && (tailDelta > APPROACH_MS || headDelta < -goodWin)) continue;
+      // Visible whenever the hold's span overlaps the playfield: draw as soon as the HEAD starts
+      // its approach (even if the tail is still far below the screen — long holds trail off the
+      // bottom) and keep drawing until the TAIL has fully passed. (The old test culled long holds
+      // whose tail hadn't entered yet, so their body/tail went missing until the very end.)
+      if (!broken && (headDelta > APPROACH_MS || tailDelta < -goodWin)) continue;
       const pHead = Math.max(0, Math.min(1, this.progressFor(headDelta)));
       const pTail = Math.max(0, Math.min(1, this.progressFor(tailDelta)));
       const yHead = n.holdActive ? this.receptorY : this.yFor(pHead);
