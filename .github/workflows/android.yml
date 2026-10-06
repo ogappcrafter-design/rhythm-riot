@@ -1,0 +1,67 @@
+name: Build Android APK
+
+# Builds a sideloadable debug APK in the cloud (GitHub's runners have the Android SDK) and attaches
+# it to the "apk-latest" release, so it can be downloaded straight to a phone — no local setup.
+on:
+  push:
+    branches: [claude/new-session-0h125a]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build web + charts
+        run: npm run build
+
+      - name: Sync Capacitor (web → android)
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk rhythm-riot.apk
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhythm-riot-apk
+          path: rhythm-riot.apk
+
+      - name: Publish to the apk-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Rhythm Riot — latest APK
+          body: |
+            Sideloadable debug build of Rhythm Riot.
+
+            **Install on Android:**
+            1. Tap `rhythm-riot.apk` below to download it.
+            2. Open it; Android will ask to allow installs from this source — allow it.
+            3. Install and play. (It's a debug build signed for testing, not a Play Store release.)
+          files: rhythm-riot.apk
+          make_latest: true
