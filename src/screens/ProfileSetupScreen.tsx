@@ -53,7 +53,7 @@ export function ProfileSetupScreen({ firstRun = false }: { firstRun?: boolean })
               spellCheck={false}
             />
             <div className="faint" style={{ fontSize: 11, marginTop: 4 }}>
-              {AVATARS[avatar].name} · 2–16 characters
+              2–16 characters
             </div>
           </div>
         </div>
@@ -66,7 +66,7 @@ export function ProfileSetupScreen({ firstRun = false }: { firstRun?: boolean })
               key={a.id}
               className={`avatar-cell${a.id === avatar ? ' is-sel' : ''}`}
               onClick={() => { sfx.play('uiTap'); setAvatar(a.id); }}
-              aria-label={a.name}
+              aria-label={`Avatar ${a.id + 1}`}
               style={{ ['--sel' as string]: a.accent }}
             >
               <AvatarPic id={a.id} size={64} ring={false} />
