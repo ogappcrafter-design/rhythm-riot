@@ -8,6 +8,9 @@ import { GradeBadge, StarRow } from '../components/ui';
 import { WordArt } from '../components/WordArt';
 import { IconRiotShard } from '../components/icons';
 import { sfx } from '../audio/sfx';
+import { getProfile } from '../state/storage';
+import { encodeChallenge, type Challenge } from '../online/leaderboard';
+import { useState } from 'react';
 
 const DIFF_NAME: Record<string, string> = {
   easy: 'EASY',
@@ -20,16 +23,40 @@ export function ResultsScreen({
   result,
   isNewRecord,
   expertJustUnlocked,
+  challenge,
 }: {
   result: RunResult;
   isNewRecord: boolean;
   expertJustUnlocked: boolean;
+  challenge?: Challenge;
 }) {
   const { navigate } = useApp();
   const track = TRACKS_BY_ID[result.trackId];
   const pal = PALETTES[track.paletteKey];
   const accent: [string, string, string] = ['#ffffff', rgbCss(pal.high.note), rgbCss(pal.high.glow)];
   const t = result.totals;
+  const [copied, setCopied] = useState(false);
+  const beatChallenge = challenge ? t.score > challenge.score : null;
+
+  const shareChallenge = () => {
+    const me = getProfile();
+    const code = encodeChallenge({
+      username: me?.username ?? 'Rival',
+      trackId: result.trackId,
+      difficulty: result.difficulty,
+      score: t.score,
+    });
+    const text = `Beat my Rhythm Riot score! ${me?.username ?? ''} · ${track.title} (${DIFF_NAME[result.difficulty]}) · ${t.score.toLocaleString()} — challenge code: ${code}`;
+    sfx.play('uiTap');
+    const nav = navigator as Navigator & { share?: (d: { text: string }) => Promise<void> };
+    if (typeof nav.share === 'function') {
+      void nav.share({ text }).catch(() => {});
+    } else {
+      try { void navigator.clipboard?.writeText(text); } catch { /* ignore */ }
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2200);
+  };
 
   useEffect(() => {
     sfx.play('fanfare');
@@ -79,6 +106,13 @@ export function ResultsScreen({
       {isNewRecord && (
         <div className="banner record-banner">★ NEW RECORD</div>
       )}
+      {challenge && (
+        <div className={`banner ${beatChallenge ? 'record-banner' : 'challenge-lose'}`}>
+          {beatChallenge
+            ? `⚔️ YOU BEAT ${challenge.username.toUpperCase()}! (${challenge.score.toLocaleString()})`
+            : `⚔️ ${challenge.username} still leads — ${challenge.score.toLocaleString()}. Run it back!`}
+        </div>
+      )}
 
       <div className="results-grade card">
         <GradeBadge grade={result.grade} size={116} />
@@ -114,10 +148,18 @@ export function ResultsScreen({
       <div className="stack" style={{ marginTop: 16 }}>
         <button
           className="btn btn-primary btn-block"
-          onClick={() => { sfx.play('uiTap'); navigate({ name: 'ready', trackId: result.trackId, difficulty: result.difficulty }); }}
+          onClick={() => { sfx.play('uiTap'); navigate({ name: 'ready', trackId: result.trackId, difficulty: result.difficulty, challenge }); }}
         >
           Replay
         </button>
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn btn-ghost btn-block" style={{ flex: 1 }} onClick={shareChallenge}>
+            {copied ? '✓ Copied!' : '⚔️ Challenge a friend'}
+          </button>
+          <button className="btn btn-ghost btn-block" style={{ flex: 1 }} onClick={() => { sfx.play('uiTap'); navigate({ name: 'leaderboard' }); }}>
+            🏆 Leaderboards
+          </button>
+        </div>
         <button
           className="btn btn-ghost btn-block"
           onClick={() => { sfx.play('uiBack'); navigate({ name: 'songselect' }); }}

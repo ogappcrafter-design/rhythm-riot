@@ -8,6 +8,7 @@ import { DifficultyGem, ScreenHeader, StarRow } from '../components/ui';
 import { WordArt } from '../components/WordArt';
 import { IconPlay } from '../components/icons';
 import { sfx } from '../audio/sfx';
+import type { Challenge } from '../online/leaderboard';
 
 const LANE_COUNT: Record<Difficulty, number> = { easy: 3, medium: 4, hard: 4, expert: 5 };
 const DIFF_NAME: Record<Difficulty, string> = {
@@ -17,7 +18,7 @@ const DIFF_NAME: Record<Difficulty, string> = {
   expert: 'EXPERT',
 };
 
-export function ReadyScreen({ trackId, difficulty }: { trackId: string; difficulty: Difficulty }) {
+export function ReadyScreen({ trackId, difficulty, challenge }: { trackId: string; difficulty: Difficulty; challenge?: Challenge }) {
   const { navigate, goBack } = useApp();
   const track = TRACKS_BY_ID[trackId];
   const pal = PALETTES[track.paletteKey];
@@ -34,6 +35,11 @@ export function ReadyScreen({ trackId, difficulty }: { trackId: string; difficul
           <WordArt text={track.title} size={30} colors={accent} tilt={-3} fitHeight />
         </div>
 
+        {challenge && (
+          <div className="challenge-banner">
+            ⚔️ Beat <b>{challenge.username}</b> · {challenge.score.toLocaleString()}
+          </div>
+        )}
         <DifficultyGem diff={difficulty} active size={64} />
         <div style={{ height: 34, width: '100%' }}>
           <WordArt text={DIFF_NAME[difficulty]} size={22} colors={accent} tilt={0} fitHeight />
@@ -74,7 +80,7 @@ export function ReadyScreen({ trackId, difficulty }: { trackId: string; difficul
         onClick={() => {
           sfx.unlock();
           sfx.play('uiTap');
-          navigate({ name: 'game', trackId, difficulty });
+          navigate({ name: 'game', trackId, difficulty, challenge });
         }}
       >
         <IconPlay size={22} color="#fff" /> START

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Difficulty } from '../engine/chartTypes';
 import type { RunResult } from '../engine/gameEngine';
+import type { Challenge } from '../online/leaderboard';
 import { getSettings, saveSettings, type Settings } from './storage';
 import { sfx } from '../audio/sfx';
 
@@ -8,9 +9,10 @@ export type Route =
   | { name: 'intro' }
   | { name: 'menu' }
   | { name: 'songselect' }
-  | { name: 'ready'; trackId: string; difficulty: Difficulty }
-  | { name: 'game'; trackId: string; difficulty: Difficulty }
-  | { name: 'results'; result: RunResult; isNewRecord: boolean; expertJustUnlocked: boolean }
+  | { name: 'ready'; trackId: string; difficulty: Difficulty; challenge?: Challenge }
+  | { name: 'game'; trackId: string; difficulty: Difficulty; challenge?: Challenge }
+  | { name: 'results'; result: RunResult; isNewRecord: boolean; expertJustUnlocked: boolean; challenge?: Challenge }
+  | { name: 'leaderboard' }
   | { name: 'settings' }
   | { name: 'help' }
   | { name: 'tutorial' }

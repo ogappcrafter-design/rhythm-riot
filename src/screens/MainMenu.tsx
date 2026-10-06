@@ -46,6 +46,9 @@ export function MainMenu() {
         <button className="btn btn-primary btn-block row" style={{ justifyContent: 'center', gap: 10, fontSize: 20, padding: '18px' }} onClick={onPlay}>
           <IconPlay size={22} color="#fff" /> PLAY
         </button>
+        <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'leaderboard' })}>
+          <span className="row" style={{ justifyContent: 'center', gap: 10 }}>🏆 Leaderboards</span>
+        </button>
         <button className="btn btn-ghost btn-block" onClick={() => tap({ name: 'profile' })}>
           <span className="row" style={{ justifyContent: 'center', gap: 10 }}>
             <IconChart size={20} /> Profile &amp; Stats

@@ -80,6 +80,18 @@ generator change**.
   `android/app/build/outputs/mapping/release/mapping.txt` — upload it to the Play Console.
 - `npm run build && npx cap sync android`, then build the AAB in Android Studio.
 
+## Online backend (leaderboards + challenges)
+
+- Supabase project **`rhythm-riot`** (ref `thtpxnseevxsshpkmkpz`, us-east-2), org `umglewsnmqpxxxlmhbon`.
+- One table `public.scores` (denormalized: player_id, username, avatar_id, track_id, difficulty,
+  score, accuracy, perfect_percent, max_combo, grade). RLS: public read + validated insert only
+  (no anon update/delete). No auth — each device gets a local random `player_id`.
+- Client is plain `fetch` to PostgREST in `src/online/leaderboard.ts` (URL + publishable key inline;
+  the publishable key is safe to ship). Scores submit on a new personal best; reads de-dupe to each
+  player's best. Challenges are a shareable base64 code (`RR-…`), compared on the results screen.
+- Everything degrades silently when offline/unreachable — the game never depends on the network.
+  Note: the sandboxed web artifact preview can't reach Supabase, so verify online features on device.
+
 ## House style (from the owner)
 
 - Everything ships Play-Store-ready: polished, animated, no placeholders/TODOs, tests run each step.

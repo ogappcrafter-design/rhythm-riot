@@ -15,6 +15,7 @@ import { ProfileScreen } from './screens/ProfileScreen';
 import { SynthwaveBackground } from './components/SynthwaveBackground';
 import { PlayPromptScreen } from './screens/PlayPromptScreen';
 import { ProfileSetupScreen } from './screens/ProfileSetupScreen';
+import { LeaderboardScreen } from './screens/LeaderboardScreen';
 
 /** Only gameplay paints its own full-screen background; everything else shares ONE persistent
  *  aurora so navigating between screens never flashes or restarts the background. */
@@ -43,7 +44,7 @@ export function App() {
       case 'songselect':
         return <SongSelect />;
       case 'ready':
-        return <ReadyScreen trackId={route.trackId} difficulty={route.difficulty} />;
+        return <ReadyScreen trackId={route.trackId} difficulty={route.difficulty} challenge={route.challenge} />;
       case 'game':
         // key forces a fresh engine mount per run (prevents stale canvas/engine reuse).
         return (
@@ -51,6 +52,7 @@ export function App() {
             key={`${route.trackId}:${route.difficulty}`}
             trackId={route.trackId}
             difficulty={route.difficulty}
+            challenge={route.challenge}
           />
         );
       case 'results':
@@ -59,8 +61,11 @@ export function App() {
             result={route.result}
             isNewRecord={route.isNewRecord}
             expertJustUnlocked={route.expertJustUnlocked}
+            challenge={route.challenge}
           />
         );
+      case 'leaderboard':
+        return <LeaderboardScreen />;
       case 'settings':
         return <SettingsScreen />;
       case 'help':

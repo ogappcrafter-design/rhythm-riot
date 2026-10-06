@@ -11,6 +11,7 @@ import { rgbCss } from '../engine/colors';
 import { IconPause } from '../components/icons';
 import { WordArt } from '../components/WordArt';
 import { sfx, speakThen } from '../audio/sfx';
+import { submitScore } from '../online/leaderboard';
 
 /** Ring target shown on a pad button — matches the round disco-ball notes. */
 function PadTarget() {
@@ -27,7 +28,7 @@ type Phase = 'loading' | 'error' | 'countdown' | 'playing' | 'paused';
 const KEY_MAP = ['d', 'f', 'j', 'k', 'l'];
 const KB_PTR_BASE = 100000; // synthetic pointer ids for keyboard keys (one per lane)
 
-export function GameplayScreen({ trackId, difficulty }: { trackId: string; difficulty: Difficulty }) {
+export function GameplayScreen({ trackId, difficulty, challenge }: { trackId: string; difficulty: Difficulty; challenge?: import('../online/leaderboard').Challenge }) {
   const { navigate, settings } = useApp();
   const track = TRACKS_BY_ID[trackId];
   const pal = PALETTES[track.paletteKey];
@@ -180,11 +181,24 @@ export function GameplayScreen({ trackId, difficulty }: { trackId: string; diffi
     });
     if (sub.expertJustUnlocked) sfx.play('unlock');
     else if (sub.isNewRecord) sfx.play('record');
+    // Push new personal bests to the online leaderboard (fire-and-forget; silent if offline).
+    if (sub.isNewRecord) {
+      void submitScore({
+        trackId,
+        difficulty,
+        score: result.totals.score,
+        accuracy: result.accuracy,
+        perfectPercent: result.perfectPercent,
+        maxCombo: result.totals.maxCombo,
+        grade: String(result.grade),
+      });
+    }
     navigate({
       name: 'results',
       result,
       isNewRecord: sub.isNewRecord,
       expertJustUnlocked: sub.expertJustUnlocked,
+      challenge,
     });
   };
 
