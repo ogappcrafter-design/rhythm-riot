@@ -36,7 +36,7 @@ export function ProfileSetupScreen({ firstRun = false }: { firstRun?: boolean })
         </div>
       )}
 
-      <div className="stack fade-mask" style={{ paddingBottom: 90 }}>
+      <div className="stack fade-mask" style={{ paddingBottom: 8 }}>
         {/* Preview */}
         <div className="profile-preview">
           <div className="profile-preview-av"><AvatarPic id={avatar} size={96} /></div>

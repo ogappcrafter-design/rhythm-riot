@@ -1351,12 +1351,11 @@
   box-shadow: 0 0 20px var(--sel, #22d3ee);
 }
 .profile-savebar {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: sticky;
   bottom: 0;
+  margin-top: auto; /* push to the bottom when content is short */
   padding: 14px 16px calc(16px + var(--safe-bottom, 0px));
-  background: linear-gradient(0deg, rgba(5, 4, 14, 0.95), rgba(5, 4, 14, 0));
+  background: linear-gradient(0deg, rgba(5, 4, 14, 0.97) 60%, rgba(5, 4, 14, 0));
 }
 @media (max-width: 360px) { .avatar-grid { gap: 8px; } }
 
