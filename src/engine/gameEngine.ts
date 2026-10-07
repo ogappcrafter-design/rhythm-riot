@@ -74,6 +74,9 @@ interface RuntimeNote {
   graceMs: number; // how long the required lane hasn't been held (slides/holds break past a grace)
   ownerPtr: number; // the specific finger/pointer holding this sustain (-1 = none)
   ownerLane: number; // that finger's current lane — must track the moving point to keep the slide
+  endLane: number; // the lane a slide finishes on (= lane for taps/holds)
+  hasEndCap: boolean; // a slide whose tail lands on a tap you must press to finish
+  isSlideEnd: boolean; // a tap that caps the end of a slide (telegraphed specially)
 }
 
 interface FloatingJudge {
@@ -98,9 +101,9 @@ const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
 const SPAWN_FRAC = 0.72; // notes appear here (just above the pads) and rise to the receptors
-const SLIDE_GRACE_MS = 200; // how long the tracking finger can be off the path before it breaks
-const SLIDE_TOL = 0.6; // how far (in lanes) the tracking finger may be from the moving point
-const HOLD_RELEASE_WINDOW = 140; // lifting within this of the end still completes the sustain
+const SLIDE_GRACE_MS = 360; // how long the tracking finger can be off the path before it breaks (forgiving)
+const SLIDE_TOL = 1.1; // how far (in lanes) the tracking finger may trail the moving point (forgiving)
+const HOLD_RELEASE_WINDOW = 180; // lifting within this of the end still completes the sustain
 const DOT_SPRITE_SIZE = 320; // high-res note sprites (≈3× display size) so orbs/stars stay razor-crisp
 
 // DDR judgement labels + colors. MARVELOUS is a cosmetic top tier for very tight Perfects.
@@ -231,8 +234,25 @@ export class GameEngine {
         graceMs: 0,
         ownerPtr: -1,
         ownerLane: -1,
+        endLane: isSlide && n.path && n.path.length >= 2 ? clampLane(n.path[n.path.length - 1].lane) : lane,
+        hasEndCap: false,
+        isSlideEnd: false,
       };
     });
+    // Link each slide to the tap that caps its end (same lane as the slide finishes, landing within
+    // a small window of the slide's tail). Both get telegraphed so it's obvious you tap to finish.
+    for (const s of this.notes) {
+      if (!s.isSlide) continue;
+      const endT = s.holdEndMs;
+      for (const t of this.notes) {
+        if (t === s || t.isHold) continue;
+        if (t.lane === s.endLane && Math.abs(t.timeMs - endT) <= 140) {
+          s.hasEndCap = true;
+          t.isSlideEnd = true;
+          break;
+        }
+      }
+    }
     this.resize();
   }
 
@@ -1321,7 +1341,21 @@ export class GameEngine {
       const alpha = Math.min(1, p * 6); // fade in as it appears at the bottom
       // Floor shadow so each note reads as FLOATING above the lo-fi road behind it.
       this.drawNoteShadow(x, y, noteSize, alpha);
-      this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize, alpha, songMs, n.timeMs, stars);
+      // End-cap tap (the note that finishes a slide): pulsing white ring so it's obviously a PRESS.
+      if (n.isSlideEnd) {
+        const pr = 0.5 + 0.5 * Math.sin(songMs / 130);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.4 * pr})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, noteSize * 0.5 + 4 + pr * 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+      this.drawOrb(keyFor(n), colorFor(n), x, y, noteSize * (n.isSlideEnd ? 1.1 : 1), alpha, songMs, n.timeMs, stars);
     }
   }
 
@@ -1387,43 +1421,102 @@ export class GameEngine {
     if (endT <= startT) return;
     const wBar = this.laneW * 0.3;
     const body = broken ? FREEZE_FAIL : SLIDE_BODY;
-    const N = 20;
+    const N = 22;
     const pts: [number, number][] = [];
     for (let i = 0; i <= N; i++) {
       const t = startT + ((endT - startT) * i) / N;
       const p = Math.max(0, Math.min(1, this.progressFor(t - tapMs)));
       pts.push([this.laneCenterX(this.laneAt(n, t)), this.yFor(p)]);
     }
+    // Smooth the polyline into a flowing curve (quadratic through segment midpoints) so the ribbon
+    // reads as a single smooth stroke rather than faceted segments.
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+        const my = (pts[i][1] + pts[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+      }
+      ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    };
+
     ctx.save();
     if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    // Cheap hot glow: a wide soft additive pass under the ribbon (no shadowBlur — too costly/frame).
+
+    // 1) wide soft outer glow (additive, cheap — no shadowBlur).
     if (!broken) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.4), active ? 0.3 : 0.22);
-      ctx.lineWidth = wBar + (active ? 12 : 8);
+      trace();
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.35), active ? 0.26 : 0.18);
+      ctx.lineWidth = wBar + (active ? 14 : 9);
       ctx.stroke();
       ctx.restore();
     }
-    // Thick body.
-    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.45 : 0.3), active ? 0.95 : 0.8);
+    // 2) glassy body.
+    trace();
+    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.4 : 0.26), active ? 0.95 : 0.82);
     ctx.lineWidth = wBar;
     ctx.stroke();
-    // Bright core.
-    ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.9);
-    ctx.lineWidth = wBar * 0.34;
+    // 3) bright core.
+    trace();
+    ctx.strokeStyle = rgbCss(lightenRGB(body, 0.9), active ? 1 : 0.92);
+    ctx.lineWidth = wBar * 0.3;
     ctx.stroke();
-    // Flowing shimmer (off when broken).
+    // 4) thin white sheen + energy flowing along the ribbon (replaces the old cheap dashes).
     if (!broken) {
-      ctx.setLineDash([9, 12]);
-      ctx.lineDashOffset = (songMs / 10) % 21;
-      ctx.strokeStyle = `rgba(255,255,255,${active ? 0.65 : 0.4})`;
-      ctx.lineWidth = 2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      trace();
+      ctx.strokeStyle = `rgba(255,255,255,${active ? 0.5 : 0.3})`;
+      ctx.lineWidth = Math.max(1.5, wBar * 0.12);
       ctx.stroke();
+      const flow = 3;
+      for (let k = 0; k < flow; k++) {
+        const f = ((songMs / 620) + k / flow) % 1;
+        const idx = Math.min(pts.length - 1, Math.floor(f * (pts.length - 1)));
+        const [px, py] = pts[idx];
+        ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - f) + 0.2})`;
+        ctx.beginPath();
+        ctx.arc(px, py, wBar * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 5) END NODE — an obvious target where the slide finishes. When a tap caps the end, add a
+    //    pulsing outer ring + a down-chevron so it's clear you PRESS to finish.
+    const tailIsEnd = n.holdEndMs <= tapMs + APPROACH_MS + 1;
+    if (tailIsEnd && !broken) {
+      const [ex, ey] = pts[pts.length - 1];
+      const pr = 0.5 + 0.5 * Math.sin(songMs / 140);
+      const baseR = this.laneW * 0.25;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.6), 0.9);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(ex, ey, baseR, 0, Math.PI * 2);
+      ctx.stroke();
+      if (n.hasEndCap) {
+        ctx.strokeStyle = rgbCss(lightenRGB(body, 0.5), 0.3 + 0.4 * pr);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(ex, ey, baseR + 5 + pr * 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), 0.95);
+        ctx.lineWidth = 4;
+        const cy = ey - baseR - 9 - pr * 4;
+        ctx.beginPath();
+        ctx.moveTo(ex - 9, cy - 7);
+        ctx.lineTo(ex, cy);
+        ctx.lineTo(ex + 9, cy - 7);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     ctx.restore();
   }
