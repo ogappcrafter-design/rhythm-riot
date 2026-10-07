@@ -135,10 +135,14 @@
   overflow: hidden;
   background: transparent; /* the persistent aurora shows through */
   z-index: 5;
+  /* Crossfade in over the aurora the branding splash just revealed, so the hand-off from
+     the studio card reads as one continuous move instead of a hard cut. */
+  animation: intro-in 0.45s ease both;
   /* 3D stage: children with transform-style:preserve-3d get real depth/parallax. */
   perspective: 1200px;
   perspective-origin: 50% 38%;
 }
+@keyframes intro-in { from { opacity: 0; } to { opacity: 1; } }
 .intro-bg {
   position: absolute;
   inset: 0;

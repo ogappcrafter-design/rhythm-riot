@@ -88,7 +88,10 @@ export function App() {
 
   return (
     <div className="app-frame">
-      {route.name !== 'game' && route.name !== 'branding' && <SynthwaveBackground />}
+      {/* ONE persistent aurora under every non-game screen — including branding, so the
+          splash's paper fades away to reveal the exact backdrop the intro then builds on
+          (no dark gap, no snap at the hand-off). */}
+      {route.name !== 'game' && <SynthwaveBackground />}
       {body}
     </div>
   );
