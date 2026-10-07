@@ -17,7 +17,7 @@ initStorage().finally(() => {
   createRoot(rootEl).render(
     <StrictMode>
       <ErrorBoundary>
-        <AppProvider initialRoute={{ name: 'intro' }}>
+        <AppProvider initialRoute={{ name: 'branding' }}>
           <App />
         </AppProvider>
       </ErrorBoundary>

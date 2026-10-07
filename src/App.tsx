@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useApp } from './state/appContext';
 import { preview } from './audio/preview';
+import { BrandingScreen } from './screens/BrandingScreen';
 import { IntroScreen } from './screens/IntroScreen';
 import { MainMenu } from './screens/MainMenu';
 import { SongSelect } from './screens/SongSelect';
@@ -37,6 +38,8 @@ export function App() {
 
   const body = (() => {
     switch (route.name) {
+      case 'branding':
+        return <BrandingScreen />;
       case 'intro':
         return <IntroScreen />;
       case 'menu':
@@ -85,7 +88,7 @@ export function App() {
 
   return (
     <div className="app-frame">
-      {route.name !== 'game' && <SynthwaveBackground />}
+      {route.name !== 'game' && route.name !== 'branding' && <SynthwaveBackground />}
       {body}
     </div>
   );

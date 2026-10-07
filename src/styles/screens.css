@@ -1,3 +1,128 @@
+/* ========================== BRANDING SPLASH ==========================
+   Studio card shown before the Rhythm Riot intro on a cold launch. Warm paper
+   backdrop that blends into the hand-drawn artwork's edges; the card floats up,
+   holds with a gentle bob + one gloss sweep, then releases skyward into the intro. */
+.branding {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 6;
+  background: #f6f1e6;
+  animation: brand-screen-in 0.32s ease both;
+}
+.branding.out {
+  animation: brand-screen-out 0.58s ease forwards;
+}
+@keyframes brand-screen-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes brand-screen-out { to { opacity: 0; } }
+
+/* Warm paper gradient + soft vignette so the card sits on a page, not a flat fill. */
+.branding-paper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(120% 95% at 50% 42%, #fdf8ee 0%, #f5eedd 55%, #ece2cf 100%);
+}
+.branding-paper::after {
+  /* faint toothy paper grain, cheap (two tiled soft gradients). */
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(rgba(120, 96, 64, 0.05) 1px, transparent 1.6px),
+    radial-gradient(rgba(120, 96, 64, 0.04) 1px, transparent 1.6px);
+  background-size: 7px 7px, 11px 11px;
+  background-position: 0 0, 3px 4px;
+}
+
+.branding-stage {
+  position: relative;
+  z-index: 2;
+  width: min(460px, 82vw);
+  border-radius: 22px;
+  overflow: hidden;
+  /* Soft warm-ink lift so the cream card reads above the cream page. */
+  box-shadow:
+    0 22px 44px -14px rgba(74, 46, 32, 0.34),
+    0 4px 14px -6px rgba(74, 46, 32, 0.22);
+  transform-origin: 50% 70%;
+  animation: brand-card-in 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.branding.hold .branding-stage { animation: brand-card-bob 4.5s ease-in-out infinite; }
+.branding.out .branding-stage { animation: brand-card-out 0.6s cubic-bezier(0.5, 0, 0.75, 0) forwards; }
+
+.branding-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@keyframes brand-card-in {
+  0%   { opacity: 0; transform: translateY(40px) scale(0.9); filter: blur(7px); }
+  55%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes brand-card-bob {
+  0%, 100% { transform: translateY(0) rotate(-0.4deg); }
+  50%      { transform: translateY(-9px) rotate(0.4deg); }
+}
+/* Release upward — the card floats skyward as it hands off to the intro. */
+@keyframes brand-card-out {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-70px) scale(1.05); }
+}
+
+/* One diagonal gloss sweep across the card after it lands. */
+.branding-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(255, 255, 255, 0.0) 60%
+  );
+  transform: translateX(-130%);
+  animation: brand-sheen 1.1s ease 1.05s 1 both;
+}
+@keyframes brand-sheen {
+  0%   { transform: translateX(-130%); }
+  100% { transform: translateX(130%); }
+}
+
+.branding-skip {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(74, 46, 32, 0.55);
+  animation: brand-skip-pulse 2.2s ease-in-out infinite;
+  animation-delay: 1.4s;
+  opacity: 0;
+}
+@keyframes brand-skip-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .branding-stage,
+  .branding.hold .branding-stage { animation: brand-card-in 0.4s ease both; }
+  .branding-sheen { display: none; }
+}
+
 /* ============================ INTRO ============================ */
 .intro {
   position: absolute;

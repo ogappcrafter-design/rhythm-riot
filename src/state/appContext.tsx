@@ -6,6 +6,7 @@ import { getSettings, saveSettings, type Settings } from './storage';
 import { sfx } from '../audio/sfx';
 
 export type Route =
+  | { name: 'branding' }
   | { name: 'intro' }
   | { name: 'menu' }
   | { name: 'songselect' }
@@ -42,7 +43,7 @@ export function AppProvider({ children, initialRoute }: { children: ReactNode; i
   const navigate = useCallback((r: Route) => {
     setRoute((prev) => {
       // Don't stack transient/full-screen states we never want "back" to return to.
-      if (prev.name !== 'game' && prev.name !== 'results' && prev.name !== 'intro') {
+      if (prev.name !== 'game' && prev.name !== 'results' && prev.name !== 'intro' && prev.name !== 'branding') {
         history.current.push(prev);
         if (history.current.length > 20) history.current.shift();
       }
