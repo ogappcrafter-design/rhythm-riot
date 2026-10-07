@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/appContext';
+import { brandSound } from '../audio/brandSound';
 
 const LOGO_SRC = `${import.meta.env.BASE_URL}floatskyward.webp`;
 
@@ -12,7 +13,7 @@ const LOGO_SRC = `${import.meta.env.BASE_URL}floatskyward.webp`;
  * Auto-advances (~2.9s); tappable to skip after a short beat so it never feels like a wall.
  */
 export function BrandingScreen() {
-  const { navigate } = useApp();
+  const { navigate, settings } = useApp();
   const [phase, setPhase] = useState<'in' | 'hold' | 'out'>('in');
   const canSkip = useRef(false);
   const done = useRef(false);
@@ -26,9 +27,14 @@ export function BrandingScreen() {
   };
 
   useEffect(() => {
+    // Branding sting — plays with the logo (autoplays in the native app; fires on the first
+    // touch on web/PWA where autoplay is blocked). Scaled by the SFX volume setting.
+    brandSound.play(settings.sfxVolume);
     const t1 = setTimeout(() => (canSkip.current = true), 700);
     const t2 = setTimeout(() => setPhase('hold'), 1050);
-    const t3 = setTimeout(finish, 2900);
+    // Hold long enough for most of the ~4.3s sting to ring out with the card; its tail
+    // carries over into the intro for a seamless audio bridge.
+    const t3 = setTimeout(finish, 3300);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
