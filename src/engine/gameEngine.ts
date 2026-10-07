@@ -239,16 +239,17 @@ export class GameEngine {
   resize(): void {
     const { canvas } = this.opts;
     const rect = canvas.getBoundingClientRect();
-    // Render at the device's native pixel density (up to 3×) so lanes, rings, text and orbs are
-    // razor-sharp on high-DPI phones instead of upscaled.
-    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // Render density is capped at 2× — the scene is gradient/effect-heavy, and a full 3× backing
+    // store (≈2.25× more pixels to fill every frame) is the single biggest cause of lag on phones.
+    // 2× still looks crisp; sprites are pre-rendered at high resolution so they stay sharp.
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.w = Math.max(1, rect.width);
     this.h = Math.max(1, rect.height);
     canvas.width = Math.round(this.w * this.dpr);
     canvas.height = Math.round(this.h * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = 'high'; // crisp, clean sprite scaling
+    this.ctx.imageSmoothingQuality = 'medium';
     this.particles.resize(this.w, this.h);
     this.dotSprites.clear();
     this.swirlSprites.clear();
@@ -257,7 +258,7 @@ export class GameEngine {
   }
 
   private initFlow(): void {
-    const count = Math.round(70 * this.opts.visualIntensity);
+    const count = Math.round(44 * this.opts.visualIntensity);
     this.flowStars = [];
     for (let i = 0; i < count; i++) {
       const z = Math.random();
@@ -967,7 +968,7 @@ export class GameEngine {
 
     // Stars (deterministic positions, twinkling).
     ctx.globalCompositeOperation = 'lighter';
-    for (let s = 0; s < 130; s++) {
+    for (let s = 0; s < 64; s++) {
       const sx = (Math.sin(s * 12.9898) * 0.5 + 0.5) * this.w;
       const sy = skyTop + (Math.sin(s * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.95;
       const tw = 0.4 + 0.6 * (Math.sin(songMs / 600 + s) * 0.5 + 0.5);
@@ -1008,7 +1009,7 @@ export class GameEngine {
 
     // Glowing wireframe MOUNTAINS along the horizon (far dim ridge, near bright ridge).
     const drawRidge = (maxH: number, col: RGB, alpha: number, seedOff: number, lw: number) => {
-      const steps = 54;
+      const steps = 30;
       ctx.beginPath();
       ctx.moveTo(0, top);
       for (let i = 0; i <= steps; i++) {
@@ -1263,9 +1264,20 @@ export class GameEngine {
 
       ctx.save();
       if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
-      // Hot outer glow so the hold reads unmistakably as a special note.
-      ctx.shadowColor = rgbCss(lightenRGB(body, 0.5), 1);
-      ctx.shadowBlur = (active ? 26 : 16) * pulse;
+      // Cheap hot glow: a wide, soft additive stroke under the body (no shadowBlur — that's a major
+      // per-frame cost on phones).
+      if (!broken) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = rgbCss(lightenRGB(body, 0.4), 0.28 * pulse);
+        ctx.lineWidth = wBar + (active ? 12 : 7);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, top + r);
+        ctx.lineTo(x, bot - r);
+        ctx.stroke();
+        ctx.restore();
+      }
       const grad = ctx.createLinearGradient(0, top, 0, bot);
       grad.addColorStop(0, rgbCss(lightenRGB(body, 0.55), (active ? 1 : 0.9) * pulse));
       grad.addColorStop(1, rgbCss(body, active ? 0.95 : 0.8));
@@ -1273,7 +1285,6 @@ export class GameEngine {
       ctx.beginPath();
       ctx.roundRect(x - r, top, wBar, Math.max(4, bot - top), r);
       ctx.fill();
-      ctx.shadowBlur = 0;
       ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.85);
       ctx.lineWidth = active ? 4 : 3;
       ctx.stroke();
@@ -1389,14 +1400,19 @@ export class GameEngine {
     ctx.lineCap = 'round';
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    // Hot glow so the slide ribbon pops as a special drag note.
-    ctx.shadowColor = rgbCss(lightenRGB(body, 0.5), 1);
-    ctx.shadowBlur = active ? 26 : 16;
+    // Cheap hot glow: a wide soft additive pass under the ribbon (no shadowBlur — too costly/frame).
+    if (!broken) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.4), active ? 0.3 : 0.22);
+      ctx.lineWidth = wBar + (active ? 12 : 8);
+      ctx.stroke();
+      ctx.restore();
+    }
     // Thick body.
     ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.45 : 0.3), active ? 0.95 : 0.8);
     ctx.lineWidth = wBar;
     ctx.stroke();
-    ctx.shadowBlur = 0;
     // Bright core.
     ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.9);
     ctx.lineWidth = wBar * 0.34;
