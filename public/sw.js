@@ -4,7 +4,7 @@
  *  - same-origin GET assets: cache-first, then network (and cache it for next time)
  *  - cross-origin (e.g. the Supabase leaderboard): always go to the network, never cached
  */
-const CACHE = 'rr-cache-v1';
+const CACHE = 'rr-cache-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -25,7 +25,9 @@ self.addEventListener('fetch', (e) => {
   if (req.mode === 'navigate') {
     e.respondWith((async () => {
       try {
-        const net = await fetch(req);
+        // Bypass the HTTP cache so the newest index.html (and thus the newest hashed
+        // bundle) is picked up on the very next launch when online — no stale shell.
+        const net = await fetch(req, { cache: 'no-store' });
         const c = await caches.open(CACHE);
         c.put(req, net.clone());
         return net;
