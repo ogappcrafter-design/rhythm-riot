@@ -45,6 +45,18 @@ jobs:
       - name: Name the APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk rhythm-riot.apk
 
+      - name: Verify APK (integrity, signature, manifest)
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "::notice title=APK file::$(stat -c%s rhythm-riot.apk) bytes, sha256 $(sha256sum rhythm-riot.apk | cut -c1-16), build-tools $(basename "$BT")"
+          if unzip -tq rhythm-riot.apk >/dev/null 2>&1; then echo "::notice title=Zip integrity::OK"; else echo "::error title=Zip integrity::FAILED"; fi
+          "$BT/apksigner" verify --verbose rhythm-riot.apk > sig.txt 2>&1 || true
+          echo "::notice title=Signature::$(tr '\n' ' ' < sig.txt | cut -c1-600)"
+          "$BT/aapt2" dump badging rhythm-riot.apk > badge.txt 2>&1 || true
+          echo "::notice title=Badging::$(grep -E '^package:|sdkVersion|targetSdkVersion|native-code|application-label:|ERROR' badge.txt | tr '\n' ' ' | cut -c1-600)"
+          "$BT/aapt2" dump xmltree --file AndroidManifest.xml rhythm-riot.apk > mf.txt 2>&1 || true
+          echo "::notice title=Manifest flags::$(grep -E 'testOnly|debuggable|extractNativeLibs|ERROR' mf.txt | tr '\n' ' ' | cut -c1-400)"
+
       - name: Upload as workflow artifact
         uses: actions/upload-artifact@v4
         with:
