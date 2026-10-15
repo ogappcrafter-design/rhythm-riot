@@ -1,7 +1,8 @@
 /**
- * Player profile avatars — exactly 8, loaded from image files in public/avatars/ (1.png … 8.png).
+ * Player profile avatars — 12, loaded from image files in public/avatars/ (1.png … 12.png).
  * Pictures only (no character names). To swap the artwork, replace those files (square, ~256×256);
- * no code change needed. Referenced everywhere by id (0–7).
+ * no code change needed. Referenced everywhere by id (0–11). 1–8 are painted character portraits;
+ * 9–12 are synthwave mascots (sun, DJ cat, rave-bot, star) matching the app's neon theme.
  */
 const BASE = import.meta.env.BASE_URL;
 
@@ -20,6 +21,10 @@ export const AVATARS: AvatarDef[] = [
   { id: 5, src: `${BASE}avatars/6.png`, accent: '#ff9ae0' },
   { id: 6, src: `${BASE}avatars/7.png`, accent: '#ff5a5a' },
   { id: 7, src: `${BASE}avatars/8.png`, accent: '#7cf0ff' },
+  { id: 8, src: `${BASE}avatars/9.png`, accent: '#ffb13c' },
+  { id: 9, src: `${BASE}avatars/10.png`, accent: '#43ffe0' },
+  { id: 10, src: `${BASE}avatars/11.png`, accent: '#22d3ee' },
+  { id: 11, src: `${BASE}avatars/12.png`, accent: '#ffd23b' },
 ];
 
 export function avatarById(id: number | undefined): AvatarDef {
