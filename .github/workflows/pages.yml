@@ -29,6 +29,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Serve the latest APK as a plain static file (no expiring redirect URLs, which some phone
+      # download managers mangle into a broken .apk): /rhythm-riot/rhythm-riot.apk
+      - name: Add latest APK to the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download apk-latest --repo ${{ github.repository }} --pattern rhythm-riot.apk --dir dist --clobber || echo "no APK release yet"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

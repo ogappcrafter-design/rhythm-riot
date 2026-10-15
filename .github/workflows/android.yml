@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   apk:
@@ -55,7 +56,7 @@ jobs:
           "$BT/aapt2" dump badging rhythm-riot.apk > badge.txt 2>&1 || true
           echo "::notice title=Badging::$(grep -E '^package:|sdkVersion|targetSdkVersion|native-code|application-label:|ERROR' badge.txt | tr '\n' ' ' | cut -c1-600)"
           "$BT/aapt2" dump xmltree --file AndroidManifest.xml rhythm-riot.apk > mf.txt 2>&1 || true
-          echo "::notice title=Manifest flags::$(grep -E 'testOnly|debuggable|extractNativeLibs|ERROR' mf.txt | tr '\n' ' ' | cut -c1-400)"
+          echo "::notice title=Manifest flags::$(grep -E 'testOnly|debuggable|extractNativeLibs|minSdkVersion|ERROR' mf.txt | tr '\n' ' ' | cut -c1-400)"
 
       - name: Upload as workflow artifact
         uses: actions/upload-artifact@v4
@@ -77,3 +78,8 @@ jobs:
             3. Install and play. (It's a debug build signed for testing, not a Play Store release.)
           files: rhythm-riot.apk
           make_latest: true
+
+      - name: Refresh the Pages site so it serves this APK directly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo ${{ github.repository }} --ref ${{ github.ref_name }}

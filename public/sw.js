@@ -21,6 +21,7 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // leave Supabase & other hosts to the network
+  if (url.pathname.endsWith('.apk')) return; // the Android download goes straight to the network, never cached
 
   if (req.mode === 'navigate') {
     e.respondWith((async () => {
