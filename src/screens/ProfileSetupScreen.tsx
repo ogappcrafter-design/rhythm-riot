@@ -7,7 +7,7 @@ import { ScreenHeader } from '../components/ui';
 import { sfx } from '../audio/sfx';
 
 /**
- * Minimal profile setup: pick a username + one of 12 neon avatars. Shown once on first run
+ * Minimal profile setup: pick a username + one of 8 avatars. Shown once on first run
  * (before the menu) and reachable later from the menu to edit. Profiles are what multiplayer uses
  * to show who you're playing against.
  */
