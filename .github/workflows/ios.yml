@@ -1,0 +1,71 @@
+name: Build iOS app
+
+# iOS apps can only be compiled on a Mac, so this runs on GitHub's macOS runners. It produces an
+# UNSIGNED .ipa (attached to the "ios-latest" release and served from the Pages site). Apple requires
+# every app on an iPhone to be signed: sideload tools (Sideloadly / AltStore) sign it with your own
+# Apple ID, or it can be signed for TestFlight / the App Store with an Apple Developer account.
+on:
+  push:
+    branches: [claude/new-session-0h125a]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build web + charts
+        run: npm run build
+
+      - name: Sync Capacitor (web → ios, runs pod install)
+        run: npx cap sync ios
+
+      - name: Compile (unsigned, device build)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -40
+          test -d build/Build/Products/Release-iphoneos/App.app
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R ios/App/build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry rhythm-riot.ipa Payload
+          echo "::notice title=IPA::$(stat -f%z rhythm-riot.ipa) bytes, $(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Payload/App.app/Info.plist) ($(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Payload/App.app/Info.plist)), bundle $(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' Payload/App.app/Info.plist)"
+
+      - name: Publish to the ios-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-latest
+          name: Rhythm Riot — latest iOS build (unsigned)
+          body: |
+            Unsigned iPhone build of Rhythm Riot. iPhones only run apps signed through Apple, so install it with
+            a sideloading tool that signs it with your Apple ID (Sideloadly or AltStore, from a computer),
+            or via TestFlight once an Apple Developer account is set up.
+
+            No computer? Play the full game now in Safari: open https://ogappcrafter-design.github.io/rhythm-riot/
+            → Share → Add to Home Screen.
+          files: rhythm-riot.ipa
+          make_latest: false
+
+      - name: Refresh the Pages site so it serves this .ipa directly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo ${{ github.repository }} --ref ${{ github.ref_name }}
