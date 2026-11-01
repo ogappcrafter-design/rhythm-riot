@@ -68,7 +68,9 @@ generator change**.
    the bundled ffmpeg: `ffmpeg -i in.m4a -c:a aac -b:a 192k -movflags +faststart public/audio/<id>.mp4`.
 2. Add `(id, "<id>.mp4")` to `TRACKS` in `scripts/analyze.py` **and** to `TRACKS` in
    `scripts/generateCharts.mjs`.
-3. `python3 scripts/analyze.py` (reads the new bpm + duration).
+3. `python3 scripts/analyze.py <id> [<id>...]` analyzes just the new tracks and merges them in, so
+   existing charts stay byte-identical (no args re-analyzes everything). Bump the track count in
+   `test/charts.test.mjs`.
 4. Add the track to `src/data/tracks.ts` (use the analyzed bpm/duration) and a palette to
    `src/data/palettes.ts` (key must match the track id).
 5. `node scripts/generateCharts.mjs`, then `npm run build && npm test`.

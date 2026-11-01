@@ -38,6 +38,8 @@ TRACKS = [
     ("badass_underglow", "badass_underglow.mp4"),
     ("you_lick_the_lion", "you_lick_the_lion.mp4"),
     ("take_me_back_west", "take_me_back_west.mp4"),
+    ("face_to_face", "face_to_face.mp4"),
+    ("money_at_my_door", "money_at_my_door.mp4"),
 ]
 
 SR = 22050
@@ -190,8 +192,17 @@ def detect_sustain_segments(y, sr):
 
 
 def main():
+    # `python3 scripts/analyze.py [track_id ...]` re-analyzes only the named tracks and merges them
+    # into the existing analysis (so other songs' charts stay byte-identical). No args = all tracks.
+    import sys
+    only = set(sys.argv[1:])
     result = {}
+    if only and os.path.exists(OUT_PATH):
+        with open(OUT_PATH) as f:
+            result = json.load(f)
     for track_id, filename in TRACKS:
+        if only and track_id not in only:
+            continue
         print(f"analyzing {track_id} ({filename}) ...", flush=True)
         data = analyze(track_id, filename)
         result[track_id] = data

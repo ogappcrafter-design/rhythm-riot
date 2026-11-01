@@ -183,6 +183,44 @@ export const PALETTES: Record<string, Palette> = {
       lane: [200, 60, 235],
     },
   },
+  face_to_face: {
+    name: 'Midnight Duel',
+    low: {
+      bgDeep: [6, 10, 26],
+      bgGlow: [18, 36, 74],
+      note: [90, 170, 255],
+      glow: [70, 140, 240],
+      particle: [230, 110, 150],
+      lane: [30, 56, 110],
+    },
+    high: {
+      bgDeep: [12, 8, 40],
+      bgGlow: [60, 110, 255],
+      note: [255, 120, 170],
+      glow: [110, 210, 255],
+      particle: [255, 140, 190],
+      lane: [120, 160, 255],
+    },
+  },
+  money_at_my_door: {
+    name: 'Gold Rush',
+    low: {
+      bgDeep: [8, 16, 10],
+      bgGlow: [22, 54, 28],
+      note: [110, 220, 120],
+      glow: [90, 200, 110],
+      particle: [230, 200, 90],
+      lane: [40, 84, 48],
+    },
+    high: {
+      bgDeep: [20, 18, 6],
+      bgGlow: [230, 190, 50],
+      note: [255, 225, 110],
+      glow: [130, 255, 150],
+      particle: [255, 215, 80],
+      lane: [210, 180, 60],
+    },
+  },
 };
 
 export const DEFAULT_PALETTE_KEY = 'i_dont_care_tonight';

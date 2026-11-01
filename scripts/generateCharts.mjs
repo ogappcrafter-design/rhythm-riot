@@ -37,6 +37,8 @@ const TRACKS = [
   { id: 'badass_underglow', title: 'Badass Underglow', audioFile: 'badass_underglow.mp4' },
   { id: 'you_lick_the_lion', title: 'You Lick the Lion', audioFile: 'you_lick_the_lion.mp4' },
   { id: 'take_me_back_west', title: 'Take Me Back West', audioFile: 'take_me_back_west.mp4' },
+  { id: 'face_to_face', title: 'Face To Face', audioFile: 'face_to_face.mp4' },
+  { id: 'money_at_my_door', title: 'Money At My Door', audioFile: 'money_at_my_door.mp4' },
 ];
 
 const HIT_WINDOWS = {

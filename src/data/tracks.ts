@@ -95,6 +95,24 @@ export const TRACKS: TrackMeta[] = [
     bpm: 136.0,
     durationSec: 212.42,
   },
+  {
+    id: 'face_to_face',
+    title: 'Face To Face',
+    audioFile: 'face_to_face.mp4',
+    paletteKey: 'face_to_face',
+    tagline: 'Head-to-head · midnight pressure',
+    bpm: 136.0,
+    durationSec: 212.29,
+  },
+  {
+    id: 'money_at_my_door',
+    title: 'Money At My Door',
+    audioFile: 'money_at_my_door.mp4',
+    paletteKey: 'money_at_my_door',
+    tagline: 'Gold rush · bouncing hustle',
+    bpm: 136.0,
+    durationSec: 230.93,
+  },
 ];
 
 export const TRACKS_BY_ID: Record<string, TrackMeta> = Object.fromEntries(
