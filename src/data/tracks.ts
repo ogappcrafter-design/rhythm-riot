@@ -91,7 +91,7 @@ export const TRACKS: TrackMeta[] = [
     title: 'Take Me Back West',
     audioFile: 'take_me_back_west.mp4',
     paletteKey: 'take_me_back_west',
-    tagline: 'Dusty sunset · wide groove',
+    tagline: 'Dusty sunset · slide-heavy groove',
     bpm: 136.0,
     durationSec: 212.42,
   },
@@ -112,6 +112,15 @@ export const TRACKS: TrackMeta[] = [
     tagline: 'Gold rush · bouncing hustle',
     bpm: 136.0,
     durationSec: 230.93,
+  },
+  {
+    id: 'skull_kings_cadillac',
+    title: 'Skull Kings Cadillac',
+    audioFile: 'skull_kings_cadillac.mp4',
+    paletteKey: 'skull_kings_cadillac',
+    tagline: 'Chrome & bone · slide-heavy cruise',
+    bpm: 99.4,
+    durationSec: 216.81,
   },
 ];
 

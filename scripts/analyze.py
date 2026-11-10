@@ -40,6 +40,7 @@ TRACKS = [
     ("take_me_back_west", "take_me_back_west.mp4"),
     ("face_to_face", "face_to_face.mp4"),
     ("money_at_my_door", "money_at_my_door.mp4"),
+    ("skull_kings_cadillac", "skull_kings_cadillac.mp4"),
 ]
 
 SR = 22050

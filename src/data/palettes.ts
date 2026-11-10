@@ -221,6 +221,25 @@ export const PALETTES: Record<string, Palette> = {
       lane: [210, 180, 60],
     },
   },
+  skull_kings_cadillac: {
+    name: 'Chrome Skull',
+    low: {
+      bgDeep: [16, 6, 10],
+      bgGlow: [54, 14, 24],
+      note: [235, 70, 90],
+      glow: [200, 60, 80],
+      particle: [200, 210, 230],
+      lane: [90, 28, 40],
+    },
+    high: {
+      bgDeep: [20, 6, 30],
+      bgGlow: [220, 40, 80],
+      note: [255, 110, 130],
+      glow: [190, 220, 255],
+      particle: [230, 240, 255],
+      lane: [240, 70, 110],
+    },
+  },
 };
 
 export const DEFAULT_PALETTE_KEY = 'i_dont_care_tonight';

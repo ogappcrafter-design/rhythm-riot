@@ -39,6 +39,7 @@ const TRACKS = [
   { id: 'take_me_back_west', title: 'Take Me Back West', audioFile: 'take_me_back_west.mp4' },
   { id: 'face_to_face', title: 'Face To Face', audioFile: 'face_to_face.mp4' },
   { id: 'money_at_my_door', title: 'Money At My Door', audioFile: 'money_at_my_door.mp4' },
+  { id: 'skull_kings_cadillac', title: 'Skull Kings Cadillac', audioFile: 'skull_kings_cadillac.mp4' },
 ];
 
 const HIT_WINDOWS = {
@@ -284,10 +285,38 @@ function classifyColor(tMs, beatsMs) {
 // target lane over its duration, so the player drags to follow it (Chunithm-style), judged like a
 // freeze (hold the path to the end = O.K., wander off/let go = N.G.). Deterministic (seeded).
 // Per-track slide character. "You Lick the Lion" is trippy as hell, so it gets near-constant,
-// long, flowing S-curve slides (curveChance high); other tracks keep the difficulty defaults.
+// long, flowing S-curve slides (curveChance high). "Take Me Back West" and "Skull Kings Cadillac"
+// are slide showcases too — on EVERY difficulty, Easy included (Easy still caps each drag at one
+// lane, so it stays beginner-fair). Other tracks keep the difficulty defaults.
 const TRACK_SLIDE_STYLE = {
   you_lick_the_lion: { fraction: 0.95, curveChance: 0.85, minMs: 300, holdFraction: 0.26 },
+  take_me_back_west: { fraction: 0.95, curveChance: 0.75, minMs: 280, holdFraction: 0.4, gapSlides: true },
+  skull_kings_cadillac: { fraction: 0.95, curveChance: 0.75, minMs: 280, holdFraction: 0.4, gapSlides: true },
 };
+
+// Slide-showcase tracks: sustained notes alone don't supply enough slides, so any note followed by a
+// breather (no other note for GAP_MIN_MS) also becomes a sustain that ends GAP_TAIL_MS before the next
+// note — convertSlides then turns it into a drag. The slide rides a real onset and always finishes
+// with time to lift off before the next note lands.
+function addGapSustains(trackId, notes) {
+  if (!TRACK_SLIDE_STYLE[trackId]?.gapSlides) return;
+  const GAP_MIN_MS = 620;
+  const GAP_TAIL_MS = 220;
+  const MAX_MS = 1200;
+  const sorted = [...notes].sort((a, b) => a.timeMs - b.timeMs);
+  let busyUntil = -Infinity; // end of the latest sustain so far
+  for (let i = 0; i < sorted.length; i++) {
+    const n = sorted[i];
+    const next = sorted[i + 1];
+    if (n.type === 'hold') { busyUntil = Math.max(busyUntil, n.timeMs + n.holdMs); continue; }
+    if (!next || n.timeMs < busyUntil) continue;
+    const gap = next.timeMs - n.timeMs;
+    if (gap < GAP_MIN_MS) continue;
+    n.type = 'hold';
+    n.holdMs = Math.min(MAX_MS, gap - GAP_TAIL_MS);
+    busyUntil = n.timeMs + n.holdMs;
+  }
+}
 
 function convertSlides(trackId, diff, notes, laneCount) {
   const cfg = DIFF_CONFIG[diff];
@@ -418,6 +447,7 @@ function buildDifficulty(trackId, diff, analysis) {
   const picked = selectNotes(candidates, target, cfg.minSpacingMs).filter((n) => n.tMs >= LEAD_IN_MS);
   const notes = assignLanes(trackId, diff, picked, cfg.laneCount);
   markHolds(trackId, diff, notes, analysis);
+  addGapSustains(trackId, notes);
   convertSlides(trackId, diff, notes, cfg.laneCount);
   deconflictSlides(notes);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
@@ -451,6 +481,7 @@ function buildExpert(trackId, analysis) {
   const all = [...base, ...extras].sort((a, b) => a.tMs - b.tMs);
   const notes = assignLanes(trackId, 'expert', all, cfg.laneCount);
   markHolds(trackId, 'expert', notes, analysis);
+  addGapSustains(trackId, notes);
   convertSlides(trackId, 'expert', notes, cfg.laneCount);
   deconflictSlides(notes);
   return finalizeNotes(clearHoldOverlaps(notes), analysis.beatsMs);
