@@ -1,6 +1,6 @@
 import { useApp } from '../state/appContext';
-import { WordArt } from '../components/WordArt';
-import { IconChart, IconHelp, IconPlay, IconRiotShard, IconSettings } from '../components/icons';
+import { TitleLogo } from '../components/TitleLogo';
+import { IconChart, IconHelp, IconPlay, IconSettings } from '../components/icons';
 import { TRACKS } from '../data/tracks';
 import { sfx } from '../audio/sfx';
 import { isPlayPromptSeen, getProfile } from '../state/storage';
@@ -30,11 +30,7 @@ export function MainMenu() {
         </button>
       )}
       <div className="menu-logo">
-        <div className="menu-mark">
-          <IconRiotShard size={54} color="#7c5cff" />
-        </div>
-        <WordArt text="RHYTHM" size={58} tilt={-5} colors={['#ffffff', '#b9a3ff', '#7c5cff']} />
-        <WordArt text="RIOT" size={78} tilt={-5} colors={['#ffffff', '#8ef0ff', '#22d3ee']} />
+        <TitleLogo animated={false} className="menu-title" />
         <div className="eq" aria-hidden>
           {[0.15, 0.45, 0.25, 0.6, 0.35, 0.5, 0.2].map((d, i) => (
             <span key={i} style={{ animationDelay: `${d}s`, animationDuration: `${0.7 + (i % 3) * 0.25}s` }} />

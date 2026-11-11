@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/appContext';
 import { markIntroSeen, hasProfile } from '../state/storage';
-import { WordArt } from '../components/WordArt';
-import { IconRiotShard } from '../components/icons';
+import { TitleLogo } from '../components/TitleLogo';
 import { sfx } from '../audio/sfx';
 
-// Floating energy orbs that echo the in-game note orbs (swirl via a spinning conic gradient).
-const INTRO_ORBS = [
-  { top: '16%', left: '12%', size: 66, c1: '#ff4d6a', c2: '#ff9a3c', og: 'rgba(255,90,120,.55)', dur: '8s', dl: '0s' },
-  { top: '26%', left: '80%', size: 52, c1: '#38b6ff', c2: '#9ff0ff', og: 'rgba(80,190,255,.5)', dur: '10s', dl: '.6s' },
-  { top: '70%', left: '18%', size: 48, c1: '#72e878', c2: '#c3ffb0', og: 'rgba(110,235,140,.5)', dur: '9s', dl: '1.1s' },
-  { top: '74%', left: '76%', size: 58, c1: '#b06bff', c2: '#22d3ee', og: 'rgba(150,120,255,.5)', dur: '11s', dl: '.3s' },
-  { top: '50%', left: '88%', size: 38, c1: '#ffd23b', c2: '#ffb050', og: 'rgba(255,210,80,.45)', dur: '12s', dl: '1.6s' },
-  { top: '46%', left: '5%', size: 42, c1: '#22d3ee', c2: '#7c5cff', og: 'rgba(60,210,255,.45)', dur: '10.5s', dl: '.9s' },
+// Drifting glass bubbles (same look as the in-game notes), at three depths.
+const BUBBLES = [
+  { left: '8%', size: 58, c: '255,64,92', dur: 13, dl: 0, depth: 'near' },
+  { left: '78%', size: 74, c: '56,182,255', dur: 15, dl: 2.5, depth: 'near' },
+  { left: '30%', size: 34, c: '255,214,64', dur: 18, dl: 5, depth: 'mid' },
+  { left: '62%', size: 40, c: '70,232,110', dur: 17, dl: 1.2, depth: 'mid' },
+  { left: '88%', size: 26, c: '176,107,255', dur: 21, dl: 7, depth: 'far' },
+  { left: '18%', size: 22, c: '56,182,255', dur: 23, dl: 9, depth: 'far' },
+  { left: '48%', size: 30, c: '255,108,220', dur: 20, dl: 3.8, depth: 'far' },
+  { left: '70%', size: 48, c: '255,214,64', dur: 16, dl: 10, depth: 'mid' },
 ];
 
 /**
@@ -62,39 +63,28 @@ export function IntroScreen() {
   return (
     <div className={`intro ${phase}`} onPointerDown={onTap}>
       <div className="intro-bg" />
-      <div className="intro-orbs" aria-hidden>
-        {INTRO_ORBS.map((o, i) => (
+      <div className="intro-rays" aria-hidden />
+      <div className="intro-bubbles" aria-hidden>
+        {BUBBLES.map((b, i) => (
           <span
             key={i}
-            className="intro-orb"
+            className={`intro-bubble ${b.depth}`}
             style={{
-              top: o.top,
-              left: o.left,
-              width: o.size,
-              height: o.size,
-              animationDelay: o.dl,
-              ['--c1' as string]: o.c1,
-              ['--c2' as string]: o.c2,
-              ['--og' as string]: o.og,
-              ['--dur' as string]: o.dur,
+              left: b.left,
+              width: b.size,
+              height: b.size,
+              animationDuration: `${b.dur}s`,
+              animationDelay: `-${b.dl}s`,
+              ['--c' as string]: b.c,
             }}
           />
         ))}
       </div>
-      <div className="intro-shards" aria-hidden>
-        {Array.from({ length: 14 }).map((_, i) => (
-          <span key={i} className="shard" style={{ ['--i' as string]: i }}>
-            <IconRiotShard size={16 + (i % 4) * 6} color={i % 2 ? '#22d3ee' : '#7c5cff'} />
-          </span>
-        ))}
-      </div>
       <div className="intro-logo">
-        <div className="intro-burst" aria-hidden />
-        <WordArt text="RHYTHM" size={72} tilt={-5} colors={['#ffffff', '#b9a3ff', '#7c5cff']} />
-        <WordArt text="RIOT" size={92} tilt={-5} colors={['#ffffff', '#8ef0ff', '#22d3ee']} />
+        <TitleLogo animated />
       </div>
-      <div className="intro-tag">tap to the beat · ride the mood</div>
-      {phase !== 'out' && <div className="intro-skip">tap to start</div>}
+      <div className="intro-tag">TAP TO THE BEAT <i>✦</i> RIDE THE MOOD</div>
+      {phase !== 'out' && <div className="intro-skip">TAP TO START</div>}
     </div>
   );
 }
