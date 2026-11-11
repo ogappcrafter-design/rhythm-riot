@@ -66,6 +66,20 @@
   }
   b { color: #fff; }
   .hide { display: none; }
+  .btn-ios {
+    background: linear-gradient(180deg, #ffffff 0%, #d9e4ff 40%, #8ab4ff 100%);
+    color: #0b1530; text-shadow: 0 1px 0 rgba(255,255,255,.7);
+    border-color: rgba(255,255,255,.9);
+    box-shadow: 0 7px 0 #2a4a8f, 0 0 30px rgba(140,180,255,.55), inset 0 3px 0 rgba(255,255,255,.9);
+  }
+  .ok, .warn { border-radius: 14px; padding: 12px 14px; font-size: 13px; line-height: 1.45; margin-bottom: 14px; }
+  .ok { background: rgba(74,222,128,.14); border: 1.5px solid rgba(74,222,128,.5); color: #c9ffd9; font-family: Bungee, sans-serif; font-size: 12.5px; letter-spacing: .03em; }
+  .warn { background: rgba(255,200,80,.1); border: 1.5px solid rgba(255,200,80,.45); color: #ffecc2; }
+  .warn .btn { margin-top: 10px; }
+  .ico { display: inline-block; padding: 0 5px; border-radius: 6px; background: #fff; color: #0a84ff; font-size: 12px; }
+  .adv { margin-top: 14px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 12px; }
+  .adv summary { cursor: pointer; font-family: Bungee, sans-serif; font-size: 12px; letter-spacing: .06em; color: #c3bdf0; }
+  .adv p { font-size: 12px; color: #a6a1d6; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -97,11 +111,31 @@
 
   <div class="card" id="ios">
     <h2>IPHONE</h2>
-    <div class="meta">No download needed — install straight from Safari</div>
-    <ol>
-      <li>Open <b>ogappcrafter-design.github.io/rhythm-riot</b> in <b>Safari</b>.</li>
-      <li>Tap <b>Share</b> → <b>Add to Home Screen</b>.</li>
+    <div class="meta">Installs as a full-screen app with its own icon · plays offline · no App Store needed</div>
+
+    <div id="iosInstalled" class="ok hide">✓ ALREADY INSTALLED — open Rhythm Riot from your Home Screen.</div>
+
+    <div id="iosOtherBrowser" class="warn hide">
+      <b>Open this page in Safari first.</b> Apps' built-in browsers can't install apps.
+      Tap the <b>compass / "Open in Safari"</b> button, or copy the link and paste it into Safari.
+      <button class="btn btn-alt" id="copyBtn" type="button">COPY LINK FOR SAFARI</button>
+    </div>
+
+    <a class="btn btn-ios" id="iosBtn" href="./?install=1"> INSTALL ON IPHONE</a>
+    <ol style="margin-top:14px">
+      <li>Tap <b>Install on iPhone</b> — the game opens with an install guide.</li>
+      <li>Tap Safari's <b>Share</b> button <span class="ico">&#x2B06;&#xFE0E;</span> (newer iPhones: inside the <b>•••</b> menu).</li>
+      <li>Tap <b>Add to Home Screen</b> → <b>Add</b>. Launch Rhythm Riot from your Home Screen.</li>
     </ol>
+
+    <details class="adv">
+      <summary>Native iPhone app file (advanced)</summary>
+      <p>
+        Apple only lets real iPhone apps install through the App Store or TestFlight. The native build is here for
+        sideloading with <b>Sideloadly</b> on a computer (sign in with your Apple ID; free accounts re-sign every 7 days).
+      </p>
+      <a class="btn btn-alt" href="./rhythm-riot.ipa" download>DOWNLOAD .IPA (FOR SIDELOADLY)</a>
+    </details>
   </div>
 
 <script>
@@ -118,10 +152,25 @@
   chrome.href = isAndroid
     ? 'intent://' + hostPath + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(direct) + ';end'
     : direct;
-  if (isIOS) {
+  var ua = navigator.userAgent;
+  var isIPad = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  if (isIOS || isIPad) {
     var a = document.getElementById('android');
     a.parentNode.insertBefore(document.getElementById('ios'), a);
+    var standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    // Real Safari carries "Safari/" without another browser's token; in-app webviews and
+    // Chrome/Firefox/Edge for iOS are told to open the page in Safari.
+    var safari = /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat/i.test(ua);
+    if (standalone) document.getElementById('iosInstalled').classList.remove('hide');
+    else if (!safari) document.getElementById('iosOtherBrowser').classList.remove('hide');
   }
+  var gameUrl = location.href.replace(/download\.html.*$/, '') + '?install=1';
+  document.getElementById('copyBtn').addEventListener('click', function () {
+    var b = this;
+    var done = function () { b.textContent = '✓ COPIED — PASTE IN SAFARI'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(gameUrl).then(done, function () { prompt('Copy this link:', gameUrl); });
+    else prompt('Copy this link:', gameUrl);
+  });
 </script>
 </body>
 </html>

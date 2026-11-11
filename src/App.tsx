@@ -18,6 +18,7 @@ import { SynthwaveBackground } from './components/SynthwaveBackground';
 import { PlayPromptScreen } from './screens/PlayPromptScreen';
 import { ProfileSetupScreen } from './screens/ProfileSetupScreen';
 import { LeaderboardScreen } from './screens/LeaderboardScreen';
+import { IosInstallCoach } from './components/IosInstallCoach';
 
 /** Only gameplay paints its own full-screen background; everything else shares ONE persistent
  *  aurora so navigating between screens never flashes or restarts the background. */
@@ -97,6 +98,7 @@ export function App() {
           (no dark gap, no snap at the hand-off). */}
       {route.name !== 'game' && <SynthwaveBackground />}
       {body}
+      <IosInstallCoach />
     </div>
   );
 }
