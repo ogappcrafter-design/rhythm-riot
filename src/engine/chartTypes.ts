@@ -68,6 +68,8 @@ export interface TrackChart {
   audioFile: string;
   durationMs: number;
   bpm: number;
+  /** Real detected beat times (ms), for beat-locked scrolling grid lines. */
+  beatsMs?: number[];
   difficulties: Record<Difficulty, DifficultyChart>;
   moodCurve: {
     description: string;

@@ -62,6 +62,10 @@ export function AppProvider({ children, initialRoute }: { children: ReactNode; i
     if (patch.sfxVolume !== undefined) sfx.setVolume(next.sfxVolume);
   }, []);
 
+  // Dev-only screen jumper for visual QA (screenshots of any route, e.g. results). Stripped from
+  // production builds by Vite's import.meta.env.DEV constant folding.
+  if (import.meta.env.DEV) (window as unknown as { __rrNavigate?: (r: Route) => void }).__rrNavigate = navigate;
+
   const value = useMemo(
     () => ({ route, navigate, goBack, settings, updateSettings }),
     [route, navigate, goBack, settings, updateSettings],

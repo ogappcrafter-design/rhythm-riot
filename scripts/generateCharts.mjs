@@ -534,6 +534,9 @@ function generate() {
       durationMs: a.durationMs,
       bpm: a.bpm,
       difficulties,
+      // Real detected beat times (ms) — the engine draws its scrolling beat lines on these, so the
+      // grid stays locked to the actual recording instead of drifting off a constant-BPM estimate.
+      beatsMs: a.beatsMs.map((b) => Math.round(b)),
       moodCurve: {
         description:
           'Normalized 0-1 RMS energy at 2s sample points from real librosa analysis (scripts/analyze.py). Target arc for Vibe Score comparison (spec 4.4).',

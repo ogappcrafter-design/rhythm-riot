@@ -19,6 +19,7 @@ import { sampleMoodCurve } from './chartLoader';
 import { sfx, speak } from '../audio/sfx';
 import type { AudioClock } from './audioClock';
 import type { RGB } from '../data/palettes';
+import { ART, artStyleFromHex, drawArtText } from './artText';
 
 export interface RunResult {
   trackId: string;
@@ -192,6 +193,12 @@ export class GameEngine {
   private beatMs = 500;
 
   private dpr = 1;
+  /** Index of the first beat line still ahead of the receptors (scan cursor). */
+  private beatCursor = 0;
+  /** Song position of the latest rendered frame (beat lines read it). */
+  private lastSongMs = 0;
+  /** Cached chrome receptor bezel, keyed by its pixel radius. */
+  private bezelSprite: { r: number; cv: HTMLCanvasElement } | null = null;
   private w = 0;
   private h = 0;
   private hudAccum = 0;
@@ -681,6 +688,65 @@ export class GameEngine {
     }
   }
 
+  /** Beveled chrome receptor ring (cached): drop shadow, metal annulus lit from the top, dark
+   *  recessed well inside. Rebuilt only when the lane size changes. */
+  private getBezelSprite(r: number): HTMLCanvasElement {
+    if (this.bezelSprite && this.bezelSprite.r === r) return this.bezelSprite.cv;
+    const pad = r * 0.5;
+    const css = r * 2 + pad * 2;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(css * this.dpr);
+    cv.height = Math.ceil(css * this.dpr);
+    const c = cv.getContext('2d')!;
+    c.scale(this.dpr, this.dpr);
+    const cx = css / 2;
+    const cy = css / 2;
+    const outer = r * 1.1;
+    const inner = r * 0.86;
+    // contact shadow (offset down)
+    const sh = c.createRadialGradient(cx, cy + r * 0.22, r * 0.6, cx, cy + r * 0.22, outer * 1.25);
+    sh.addColorStop(0, 'rgba(0,0,0,0.55)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = sh;
+    c.fillRect(0, 0, css, css);
+    // recessed well
+    const well = c.createRadialGradient(cx, cy - inner * 0.3, inner * 0.1, cx, cy, inner);
+    well.addColorStop(0, 'rgba(40,36,80,0.55)');
+    well.addColorStop(1, 'rgba(4,4,14,0.85)');
+    c.fillStyle = well;
+    c.beginPath();
+    c.arc(cx, cy, inner, 0, Math.PI * 2);
+    c.fill();
+    // chrome annulus, lit from the top
+    const metal = c.createLinearGradient(0, cy - outer, 0, cy + outer);
+    metal.addColorStop(0, '#ffffff');
+    metal.addColorStop(0.28, '#c9cee8');
+    metal.addColorStop(0.5, '#6a7096');
+    metal.addColorStop(0.72, '#2a2d4a');
+    metal.addColorStop(1, '#9aa0c8');
+    c.fillStyle = metal;
+    c.beginPath();
+    c.arc(cx, cy, outer, 0, Math.PI * 2);
+    c.arc(cx, cy, inner, 0, Math.PI * 2, true);
+    c.fill('evenodd');
+    // crisp dark keylines on both edges + a specular glint
+    c.strokeStyle = 'rgba(6,5,18,0.9)';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.arc(cx, cy, outer, 0, Math.PI * 2);
+    c.stroke();
+    c.beginPath();
+    c.arc(cx, cy, inner, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,0.85)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(cx, cy, (outer + inner) / 2, Math.PI * 1.15, Math.PI * 1.45);
+    c.stroke();
+    this.bezelSprite = { r, cv };
+    return cv;
+  }
+
   // ---- glowing 3D orb sprite cache -----------------------------------
   /** A smooth luminous 3D orb (glass sphere with an inner glow) in the beat color. The swirling
    *  flow inside is a separate sprite (getSwirlSprite) blitted rotating on top each frame. */
@@ -738,11 +804,28 @@ export class GameEngine {
     c.arc(cx - R * 0.34, cy - R * 0.36, R * 0.42, 0, Math.PI * 2);
     c.fill();
 
-    // 5) Thin dark edge so it reads cleanly on bright lanes.
-    c.strokeStyle = 'rgba(0,0,0,0.28)';
-    c.lineWidth = S * 0.016;
+    // 5) Gem setting: a beveled chrome bezel around the sphere (lit top, dark bottom) with a
+    //    colored inner rim, so every note reads as a solid, premium object on the lanes.
+    const bezW = S * 0.05;
+    const bez = c.createLinearGradient(0, cy - R, 0, cy + R);
+    bez.addColorStop(0, '#ffffff');
+    bez.addColorStop(0.35, '#c7cbe6');
+    bez.addColorStop(0.65, '#4a4f74');
+    bez.addColorStop(1, '#b8bde0');
+    c.strokeStyle = bez;
+    c.lineWidth = bezW;
     c.beginPath();
-    c.arc(cx, cy, R + S * 0.006, 0, Math.PI * 2);
+    c.arc(cx, cy, R + bezW * 0.45, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = 'rgba(5,4,16,0.85)';
+    c.lineWidth = S * 0.012;
+    c.beginPath();
+    c.arc(cx, cy, R + bezW, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = rgbCss(lightenRGB(color, 0.35), 0.95);
+    c.lineWidth = S * 0.014;
+    c.beginPath();
+    c.arc(cx, cy, R - S * 0.004, 0, Math.PI * 2);
     c.stroke();
 
     this.dotSprites.set(key, cv);
@@ -892,6 +975,7 @@ export class GameEngine {
 
   // ---- render ---------------------------------------------------------
   private render(songMs: number): void {
+    this.lastSongMs = songMs;
     const ctx = this.ctx;
     const moodNorm = this.mood.moodNorm;
     const cw = moodColorway(this.opts.palette, moodNorm);
@@ -922,8 +1006,9 @@ export class GameEngine {
     this.drawGridRoad(cw, songMs, beatPulse, moodNorm, comboGlow);
     this.drawLanes(cw, comboGlow, beatPulse, moodNorm);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
-    this.drawNotes(songMs);
+    // Receptors sit UNDER the notes, so a note is never hidden at the exact moment it lands.
     this.drawReceptors(cw, moodNorm, beatPulse);
+    this.drawNotes(songMs);
     this.drawHitSparks(performance.now());
     this.drawGauge(cw, moodNorm);
     if (this.combo >= 50) this.drawSideSparkles(songMs);
@@ -1182,10 +1267,48 @@ export class GameEngine {
     const pulse = 0.55 + beatPulse * 0.45; // 0.55..1 across the beat (always clearly lit)
     const baseGlow = (0.2 + moodNorm * 0.16) * pulse + comboGlow * 0.22;
 
-    // ---- Thick, GLOWING lane lines --------------------------------------------
-    // Straight vertical lines with a strong multi-pass bloom (wide halo → mid glow → bright core)
-    // so they read as luminous bars clearly in FRONT of the perspective road behind them (the road
-    // owns the horizontal lattice now). Finished with a crisp mint keyline.
+    // ---- Recessed glass lane channels --------------------------------------
+    // Each lane is a dark beveled channel: shaded edges, a faint lit center, alternating tint so
+    // adjacent lanes separate at a glance. Notes travel INSIDE these, under crisp neon rails.
+    for (let lane = 0; lane < this.laneCount; lane++) {
+      const x0 = lane * this.laneW;
+      const g = ctx.createLinearGradient(x0, 0, x0 + this.laneW, 0);
+      const tint = lane % 2 === 0 ? 0.05 : 0.025;
+      g.addColorStop(0, 'rgba(0,0,0,0.42)');
+      g.addColorStop(0.18, rgbCss(cw.glow, tint * 0.6));
+      g.addColorStop(0.5, rgbCss(lightenRGB(cw.glow, 0.5), tint));
+      g.addColorStop(0.82, rgbCss(cw.glow, tint * 0.6));
+      g.addColorStop(1, 'rgba(0,0,0,0.42)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x0, top, this.laneW, bot - top);
+    }
+
+    // ---- Beat-locked grid lines ----------------------------------------------
+    // Drawn on the song's REAL detected beats (shipped in the chart), scrolling with the notes so
+    // the rhythm is readable at a glance. They brighten as they reach the receptors.
+    const beats = this.opts.chart.beatsMs;
+    if (beats && beats.length) {
+      const tapMs = this.lastSongMs - this.opts.latencyOffsetMs;
+      let k = this.beatCursor;
+      while (k > 0 && beats[k] > tapMs) k--;
+      while (k < beats.length && beats[k] < tapMs) k++;
+      this.beatCursor = k;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let b = k; b < beats.length; b++) {
+        const delta = beats[b] - tapMs;
+        if (delta > APPROACH_MS) break;
+        const p = this.progressFor(delta);
+        const y = this.yFor(p);
+        const near = Math.max(0, Math.min(1, p));
+        ctx.fillStyle = rgbCss(lightenRGB(cw.glow, 0.45), 0.05 + near * 0.16);
+        ctx.fillRect(0, y - 1, this.w, 2);
+      }
+      ctx.restore();
+    }
+
+    // ---- Neon rails between lanes ----------------------------------------------
+    // One soft halo pass + a bright 2-tone core: luminous but crisp, never a blown-out bar.
     const drawLine = (x: number) => {
       ctx.beginPath();
       ctx.moveTo(x, top);
@@ -1196,30 +1319,20 @@ export class GameEngine {
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i <= this.laneCount; i++) {
       const x = i * this.laneW;
-      // 1) wide outer halo
       drawLine(x);
-      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.4);
-      ctx.lineWidth = 20 + comboGlow * 12 + beatPulse * 8;
+      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.38);
+      ctx.lineWidth = 12 + comboGlow * 10 + beatPulse * 6;
       ctx.stroke();
-      // 2) mid glow
       drawLine(x);
-      ctx.strokeStyle = rgbCss(glowC, baseGlow * 0.75);
-      ctx.lineWidth = 10 + comboGlow * 7 + beatPulse * 4;
-      ctx.stroke();
-      // 3) bright core
-      drawLine(x);
-      ctx.strokeStyle = rgbCss(glowC, baseGlow + 0.22);
-      ctx.lineWidth = 5.5 + comboGlow * 5 + beatPulse * 2;
+      ctx.strokeStyle = rgbCss(glowC, Math.min(1, baseGlow + 0.3));
+      ctx.lineWidth = 3 + comboGlow * 2;
       ctx.stroke();
     }
     ctx.restore();
-    // Crisp mint keyline so the lanes stay razor-legible over the glow.
     for (let i = 0; i <= this.laneCount; i++) {
-      const edge = i === 0 || i === this.laneCount;
       drawLine(i * this.laneW);
-      ctx.strokeStyle = `rgba(214,255,228,${0.32 + comboGlow * 0.25})`;
-      ctx.lineWidth = edge ? 4.6 : 3.4;
-      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(240,255,250,${0.55 + comboGlow * 0.3})`;
+      ctx.lineWidth = i === 0 || i === this.laneCount ? 1.6 : 1.1;
       ctx.stroke();
     }
 
@@ -1578,21 +1691,23 @@ export class GameEngine {
       ctx.fillStyle = halo;
       ctx.fillRect(x - this.laneW * 0.5, y - this.laneW * 0.5, this.laneW, this.laneW);
 
-      // Ring target — outer ring, faint inner disc, center pip.
-      ctx.strokeStyle = `rgba(255,255,255,${0.4 + moodNorm * 0.25})`;
-      ctx.lineWidth = 3.5;
+      // 3D chrome target: cached beveled metal bezel around a recessed dark well, then a live
+      // neon inner ring in the song's glow color that breathes on the beat.
+      const bz = this.getBezelSprite(Math.round(this.laneW * 0.3));
+      const bs = (bz.width / this.dpr) * (rr / (this.laneW * 0.3));
+      ctx.drawImage(bz, x - bs / 2, y - bs / 2, bs, bs);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.35), 0.55 + beatPulse * 0.35 + moodNorm * 0.1);
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.arc(x, y, rr * 0.74, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.045)';
+      ctx.fillStyle = rgbCss(lightenRGB(cw.glow, 0.6), 0.5 + beatPulse * 0.4);
       ctx.beginPath();
-      ctx.arc(x, y, rr * 0.94, 0, Math.PI * 2);
+      ctx.arc(x, y, rr * 0.1, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = rgbCss(lightenRGB(cw.glow, 0.3), 0.5);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x, y, rr * 0.5, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.restore();
 
       // Hit burst — bright ring flash + expanding ring.
       if (pop > 0.01) {
@@ -1623,13 +1738,10 @@ export class GameEngine {
     const h = 10;
     const danger = moodNorm < 0.3;
 
-    // "GROOVE" label.
+    // "GROOVE" label — 3D art text, pulsing red in the danger zone.
     ctx.save();
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = '800 11px system-ui, sans-serif';
-    ctx.fillStyle = danger ? `rgba(255,90,110,${0.7 + 0.3 * Math.abs(Math.sin(performance.now() / 200))})` : rgbCss(lightenRGB(cw.glow, 0.3), 0.85);
-    ctx.fillText('GROOVE', 16, y + h / 2);
+    ctx.globalAlpha = danger ? 0.7 + 0.3 * Math.abs(Math.sin(performance.now() / 200)) : 1;
+    drawArtText(ctx, 'GROOVE', 16 + labelW / 2 - 4, y + h / 2, 12, danger ? ART.miss : ART.violet, this.dpr);
     ctx.restore();
 
     // Track
@@ -1674,59 +1786,36 @@ export class GameEngine {
     }
   }
 
-  /** Big centered combo counter (number over "COMBO"), below the receptors. */
+  /** Big centered combo counter (number over "COMBO"), below the receptors — 3D art text. */
   private drawCombo(moodNorm: number, glow: RGB): void {
     if (this.combo < 2) return;
     const ctx = this.ctx;
     const scale = (1 + (Math.min(this.combo, 100) / 100) * 0.5 + moodNorm * 0.18) * (1 + this.comboPop * 0.12);
-    const size = 48 * scale;
     const cx = this.w / 2;
     const cy = this.h * 0.44;
     const tier = this.combo >= 50 ? RAINBOW[Math.floor(performance.now() / 110) % RAINBOW.length] : glow;
+    const hex = `#${tier.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
+    const style = artStyleFromHex(hex);
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    // Soft colored glow behind the number.
-    ctx.font = `900 italic ${size}px system-ui, sans-serif`;
-    ctx.fillStyle = rgbCss(tier, 0.32);
-    ctx.fillText(`${this.combo}`, cx, cy + 2);
-    // Dark outline for readability against bright arrows, then a bright white face.
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = size * 0.09;
-    ctx.strokeStyle = 'rgba(4,5,14,0.65)';
-    ctx.strokeText(`${this.combo}`, cx, cy);
-    ctx.fillStyle = 'rgba(255,255,255,0.98)';
-    ctx.fillText(`${this.combo}`, cx, cy);
-    // "COMBO" label.
-    ctx.font = `800 ${size * 0.26}px system-ui, sans-serif`;
-    ctx.lineWidth = size * 0.05;
-    ctx.strokeText('COMBO', cx, cy + size * 0.56);
-    ctx.fillStyle = rgbCss(lightenRGB(tier, 0.2), 0.97);
-    ctx.fillText('COMBO', cx, cy + size * 0.56);
+    ctx.globalAlpha = 0.95;
+    drawArtText(ctx, `${this.combo}`, cx, cy, 46, style, this.dpr, scale);
+    drawArtText(ctx, 'COMBO', cx, cy + 34 * scale, 14, style, this.dpr, scale);
     ctx.restore();
   }
 
   private drawFloaters(): void {
     const ctx = this.ctx;
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     for (const f of this.floaters) {
       const a = Math.max(0, Math.min(1, f.life * 1.6));
       ctx.globalAlpha = a;
       // Punch-in: the label slams big at spawn, then settles within the first ~18% of its life.
       const age = 1 - f.life;
-      const punch = age < 0.18 ? 1 + ((0.18 - age) / 0.18) * (f.big ? 0.4 : 0.28) : 1;
+      const punch = age < 0.18 ? 1 + ((0.18 - age) / 0.18) * (f.big ? 0.45 : 0.3) : 1;
       const isMiss = f.text === 'MISS';
-      const size = (f.big ? 30 : 22) * punch + (isMiss ? Math.sin(f.life * 40) * (1 - f.life) * 4 : 0);
       const shake = isMiss ? Math.sin(f.life * 40) * (1 - f.life) * 5 : 0;
-      ctx.font = `900 italic ${size}px system-ui, sans-serif`;
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = size * 0.16;
-      ctx.strokeStyle = 'rgba(4,5,14,0.6)';
-      ctx.strokeText(f.text, f.x + shake, f.y);
-      ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x + shake, f.y);
+      const size = f.text.length > 8 ? (f.big ? 26 : 20) : f.big ? 32 : 24;
+      drawArtText(ctx, f.text, f.x + shake, f.y, size, artStyleFromHex(f.color), this.dpr, punch);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -1749,16 +1838,10 @@ export class GameEngine {
     if (now >= this.encourageUntil) return;
     const remain = (this.encourageUntil - now) / 1600;
     const ctx = this.ctx;
+    const scale = 1 + (1 - remain) * 0.12;
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const scale = 1 + (1 - remain) * 0.15;
-    ctx.globalAlpha = Math.min(1, remain * 2);
-    ctx.font = `900 italic ${Math.round(40 * scale)}px system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(255,120,140,0.35)';
-    ctx.fillText(this.encourageText, this.w / 2, this.h * 0.56);
-    ctx.fillStyle = '#ffe28a';
-    ctx.fillText(this.encourageText, this.w / 2, this.h * 0.56 - 2);
+    ctx.globalAlpha = Math.min(0.92, remain * 2);
+    drawArtText(ctx, this.encourageText, this.w / 2, this.h * 0.56, 30, ART.gold, this.dpr, scale);
     ctx.restore();
   }
 
