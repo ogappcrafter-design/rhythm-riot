@@ -195,6 +195,8 @@ export class GameEngine {
   private dpr = 1;
   /** Index of the first beat line still ahead of the receptors (scan cursor). */
   private beatCursor = 0;
+  /** Beat pulse of the current frame (1 on the beat → 0), for note glow. */
+  private beatNow = 0;
   /** Song position of the latest rendered frame (beat lines read it). */
   private lastSongMs = 0;
   /** Cached chrome receptor bezel, keyed by its pixel radius. */
@@ -753,6 +755,9 @@ export class GameEngine {
   private getOrbSprite(key: number, color: RGB): HTMLCanvasElement {
     const cached = this.dotSprites.get(key);
     if (cached) return cached;
+    // A GLASS BUBBLE: translucent body that's clearer in the middle and denser at the rim
+    // (Fresnel), light pooling inside the bottom (refraction), a big soft specular + a sharp
+    // hotspot, and a thin reflected crescent on the lower rim. Built once, blitted per frame.
     const S = DOT_SPRITE_SIZE;
     const cv = document.createElement('canvas');
     cv.width = S;
@@ -760,75 +765,107 @@ export class GameEngine {
     const c = cv.getContext('2d')!;
     const cx = S / 2;
     const cy = S / 2;
-    const R = S * 0.34;
-    const bright = lightenRGB(color, 0.75);
-    const deep = darkenRGB(color, 0.55);
+    const R = S * 0.36;
+    const light = lightenRGB(color, 0.65);
+    const deep = darkenRGB(color, 0.5);
 
-    // 1) Outer glow halo.
+    // 1) colored bloom around the bubble (shadowBlur is fine here: sprite is built once).
     c.save();
-    c.shadowColor = rgbCss(bright, 1);
-    c.shadowBlur = S * 0.32;
-    c.fillStyle = rgbCss(color, 0.85);
+    c.shadowColor = rgbCss(color, 0.9);
+    c.shadowBlur = S * 0.14;
+    c.fillStyle = rgbCss(color, 0.35);
     c.beginPath();
-    c.arc(cx, cy, R * 0.9, 0, Math.PI * 2);
+    c.arc(cx, cy, R * 0.96, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
-    // 2) Luminous sphere body — bright core (offset up-left) fading to a deep rim = 3D + inner glow.
     c.save();
     c.beginPath();
     c.arc(cx, cy, R, 0, Math.PI * 2);
     c.clip();
-    const g = c.createRadialGradient(cx - R * 0.28, cy - R * 0.32, R * 0.08, cx, cy, R * 1.05);
-    g.addColorStop(0, rgbCss(lightenRGB(color, 0.9), 1));
-    g.addColorStop(0.35, rgbCss(bright, 1));
-    g.addColorStop(0.7, rgbCss(color, 1));
-    g.addColorStop(1, rgbCss(deep, 1));
-    c.fillStyle = g;
-    c.fillRect(cx - R, cy - R, R * 2, R * 2);
-
-    // 3) Rim light along the lower-right edge (glassy sphere).
-    c.strokeStyle = rgbCss(lightenRGB(color, 0.6), 0.5);
-    c.lineWidth = S * 0.03;
-    c.beginPath();
-    c.arc(cx, cy, R * 0.94, Math.PI * 0.05, Math.PI * 0.95);
-    c.stroke();
+    c.clearRect(0, 0, S, S); // the bloom must not tint the glass interior
+    // 2) translucent body — see-through center, rich saturated rim.
+    const body = c.createRadialGradient(cx - R * 0.15, cy - R * 0.2, R * 0.05, cx, cy, R);
+    body.addColorStop(0, rgbCss(light, 0.5));
+    body.addColorStop(0.5, rgbCss(color, 0.74));
+    body.addColorStop(0.86, rgbCss(color, 0.95));
+    body.addColorStop(1, rgbCss(deep, 0.98));
+    c.fillStyle = body;
+    c.fillRect(0, 0, S, S);
+    // 3) light pooling in the lower half (refraction caustic).
+    const pool = c.createRadialGradient(cx + R * 0.12, cy + R * 0.55, 0, cx + R * 0.12, cy + R * 0.55, R * 0.75);
+    pool.addColorStop(0, rgbCss(lightenRGB(color, 0.85), 0.85));
+    pool.addColorStop(0.5, rgbCss(light, 0.3));
+    pool.addColorStop(1, rgbCss(light, 0));
+    c.fillStyle = pool;
+    c.fillRect(0, 0, S, S);
+    // 4) inner rim shade so it reads as a solid sphere edge.
+    const rim = c.createRadialGradient(cx, cy, R * 0.8, cx, cy, R);
+    rim.addColorStop(0, 'rgba(0,0,0,0)');
+    rim.addColorStop(1, rgbCss(darkenRGB(color, 0.7), 0.55));
+    c.fillStyle = rim;
+    c.fillRect(0, 0, S, S);
     c.restore();
 
-    // 4) Soft specular hotspot, top-left, for the glossy pop.
-    const hl = c.createRadialGradient(cx - R * 0.38, cy - R * 0.42, 0, cx - R * 0.38, cy - R * 0.42, R * 0.6);
-    hl.addColorStop(0, 'rgba(255,255,255,0.9)');
-    hl.addColorStop(1, 'rgba(255,255,255,0)');
-    c.fillStyle = hl;
+    // 5) big soft specular (tilted ellipse, upper-left).
+    c.save();
+    c.translate(cx - R * 0.3, cy - R * 0.44);
+    c.rotate(-0.55);
+    c.scale(1, 0.55);
+    const spec = c.createRadialGradient(0, 0, 0, 0, 0, R * 0.55);
+    spec.addColorStop(0, 'rgba(255,255,255,0.95)');
+    spec.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    spec.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = spec;
     c.beginPath();
-    c.arc(cx - R * 0.34, cy - R * 0.36, R * 0.42, 0, Math.PI * 2);
+    c.arc(0, 0, R * 0.55, 0, Math.PI * 2);
     c.fill();
-
-    // 5) Gem setting: a beveled chrome bezel around the sphere (lit top, dark bottom) with a
-    //    colored inner rim, so every note reads as a solid, premium object on the lanes.
-    const bezW = S * 0.05;
-    const bez = c.createLinearGradient(0, cy - R, 0, cy + R);
-    bez.addColorStop(0, '#ffffff');
-    bez.addColorStop(0.35, '#c7cbe6');
-    bez.addColorStop(0.65, '#4a4f74');
-    bez.addColorStop(1, '#b8bde0');
-    c.strokeStyle = bez;
-    c.lineWidth = bezW;
+    c.restore();
+    // 6) sharp hotspot.
+    c.fillStyle = 'rgba(255,255,255,0.98)';
     c.beginPath();
-    c.arc(cx, cy, R + bezW * 0.45, 0, Math.PI * 2);
-    c.stroke();
-    c.strokeStyle = 'rgba(5,4,16,0.85)';
+    c.ellipse(cx - R * 0.42, cy - R * 0.5, R * 0.1, R * 0.065, -0.6, 0, Math.PI * 2);
+    c.fill();
+    // 7) reflected crescent along the lower rim.
+    c.strokeStyle = 'rgba(255,255,255,0.55)';
     c.lineWidth = S * 0.012;
+    c.lineCap = 'round';
     c.beginPath();
-    c.arc(cx, cy, R + bezW, 0, Math.PI * 2);
+    c.arc(cx, cy, R * 0.86, Math.PI * 0.18, Math.PI * 0.72);
     c.stroke();
-    c.strokeStyle = rgbCss(lightenRGB(color, 0.35), 0.95);
-    c.lineWidth = S * 0.014;
+    // 8) crisp outline: bright Fresnel edge + thin dark keyline for contrast on any background.
+    c.strokeStyle = rgbCss(lightenRGB(color, 0.5), 0.95);
+    c.lineWidth = S * 0.016;
     c.beginPath();
-    c.arc(cx, cy, R - S * 0.004, 0, Math.PI * 2);
+    c.arc(cx, cy, R - S * 0.006, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = 'rgba(6,4,20,0.55)';
+    c.lineWidth = S * 0.008;
+    c.beginPath();
+    c.arc(cx, cy, R + S * 0.006, 0, Math.PI * 2);
     c.stroke();
 
     this.dotSprites.set(key, cv);
+    return cv;
+  }
+
+  /** Soft inner glow core for a bubble — blitted additively, pulsing on the beat. */
+  private getCoreSprite(key: number, color: RGB): HTMLCanvasElement {
+    const k = 1000 + key;
+    const cached = this.dotSprites.get(k);
+    if (cached) return cached;
+    const S = 128;
+    const cv = document.createElement('canvas');
+    cv.width = S;
+    cv.height = S;
+    const c = cv.getContext('2d')!;
+    const g = c.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, rgbCss(lightenRGB(color, 0.8), 0.9));
+    g.addColorStop(0.4, rgbCss(color, 0.45));
+    g.addColorStop(1, rgbCss(color, 0));
+    c.fillStyle = g;
+    c.fillRect(0, 0, S, S);
+    this.dotSprites.set(k, cv);
     return cv;
   }
 
@@ -981,6 +1018,7 @@ export class GameEngine {
     const cw = moodColorway(this.opts.palette, moodNorm);
     const phase = (((songMs % this.beatMs) + this.beatMs) % this.beatMs) / this.beatMs;
     const beatPulse = Math.pow(1 - phase, 3); // 1 right on the beat → 0
+    this.beatNow = beatPulse;
 
     // Background gradient (mood-graded)
     const grad = ctx.createLinearGradient(0, 0, 0, this.h);
@@ -1397,13 +1435,18 @@ export class GameEngine {
 
       ctx.save();
       if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
-      // Cheap hot glow: a wide, soft additive stroke under the body (no shadowBlur — that's a major
-      // per-frame cost on phones).
+      const h = Math.max(4, bot - top);
+      // GLASS TUBE (matches slides): floor shadow, aura, horizontal cylinder shading, gloss stripe,
+      // and bubbles rising inside.
+      ctx.fillStyle = `rgba(0,0,0,${broken ? 0.15 : 0.3})`;
+      ctx.beginPath();
+      ctx.roundRect(x - r + wBar * 0.12, top + wBar * 0.38, wBar, h, r);
+      ctx.fill();
       if (!broken) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = rgbCss(lightenRGB(body, 0.4), 0.28 * pulse);
-        ctx.lineWidth = wBar + (active ? 12 : 7);
+        ctx.strokeStyle = rgbCss(lightenRGB(body, 0.35), 0.22 * pulse);
+        ctx.lineWidth = wBar * 1.8;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(x, top + r);
@@ -1411,26 +1454,43 @@ export class GameEngine {
         ctx.stroke();
         ctx.restore();
       }
-      const grad = ctx.createLinearGradient(0, top, 0, bot);
-      grad.addColorStop(0, rgbCss(lightenRGB(body, 0.55), (active ? 1 : 0.9) * pulse));
-      grad.addColorStop(1, rgbCss(body, active ? 0.95 : 0.8));
-      ctx.fillStyle = grad;
+      const cyl = ctx.createLinearGradient(x - r, 0, x + r, 0);
+      cyl.addColorStop(0, rgbCss(darkenRGB(body, 0.5), 0.92));
+      cyl.addColorStop(0.22, rgbCss(body, active ? 0.75 : 0.62));
+      cyl.addColorStop(0.5, rgbCss(lightenRGB(body, 0.55), (active ? 0.8 : 0.6) * pulse));
+      cyl.addColorStop(0.78, rgbCss(body, active ? 0.75 : 0.62));
+      cyl.addColorStop(1, rgbCss(darkenRGB(body, 0.5), 0.92));
+      ctx.fillStyle = cyl;
       ctx.beginPath();
-      ctx.roundRect(x - r, top, wBar, Math.max(4, bot - top), r);
+      ctx.roundRect(x - r, top, wBar, h, r);
       ctx.fill();
-      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.85), active ? 1 : 0.85);
-      ctx.lineWidth = active ? 4 : 3;
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.6), active ? 0.95 : 0.75);
+      ctx.lineWidth = 1.6;
       ctx.stroke();
-      // Flowing shimmer down the body (arrows off when broken).
       if (!broken) {
-        ctx.setLineDash([9, 11]);
-        ctx.lineDashOffset = (songMs / 10) % 20;
-        ctx.strokeStyle = `rgba(255,255,255,${active ? 0.6 : 0.3})`;
-        ctx.lineWidth = 2;
+        // gloss stripe on the upper-left of the tube
+        ctx.fillStyle = 'rgba(255,255,255,0.62)';
         ctx.beginPath();
-        ctx.moveTo(x, top + r);
-        ctx.lineTo(x, bot - r);
-        ctx.stroke();
+        ctx.roundRect(x - r * 0.62, top + r * 0.5, Math.max(2, r * 0.22), Math.max(2, h - r), r * 0.11);
+        ctx.fill();
+        // bubbles rising inside toward the receptor
+        const span = h - r * 2;
+        if (span > 8) {
+          for (let k = 0; k < 4; k++) {
+            const f = ((songMs / 1100) + k / 4) % 1;
+            const by = bot - r - f * span;
+            const bx = x + Math.sin(songMs / 300 + k * 1.9) * r * 0.3;
+            const br = r * (0.18 + (k % 3) * 0.05);
+            const a = Math.sin(f * Math.PI);
+            ctx.fillStyle = `rgba(255,255,255,${0.12 * a})`;
+            ctx.strokeStyle = `rgba(255,255,255,${0.7 * a})`;
+            ctx.lineWidth = 1.1;
+            ctx.beginPath();
+            ctx.arc(bx, by, br, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
       }
       ctx.restore();
     }
@@ -1499,7 +1559,7 @@ export class GameEngine {
   private drawOrb(key: number, color: RGB, x: number, y: number, size: number, alpha: number, songMs: number, phase: number, star = false): void {
     const ctx = this.ctx;
     if (star) {
-      // The whole star gently spins for the "swirling" read.
+      // Star power: the whole star gently spins, with luminous flow churning inside it.
       const sp = size * 1.12;
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -1507,21 +1567,30 @@ export class GameEngine {
       ctx.rotate((songMs * 0.0016 + phase * 0.0013) % (Math.PI * 2));
       ctx.drawImage(this.getStarSprite(key, color), -sp / 2, -sp / 2, sp, sp);
       ctx.restore();
-    } else {
-      ctx.globalAlpha = alpha;
-      ctx.drawImage(this.getOrbSprite(key, color), x - size / 2, y - size / 2, size, size);
+      const swirl = this.getSwirlSprite(key, color);
+      const s = size * 0.7;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.translate(x, y);
+      ctx.rotate((-songMs * 0.0013 - phase * 0.0011) % (Math.PI * 2));
+      ctx.drawImage(swirl, -s / 2, -s / 2, s, s);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      return;
     }
-    // Swirling energy — rotated by time (+ a per-note phase) and blended additively so it reads as
-    // luminous flow churning inside the glass / star.
-    const swirl = this.getSwirlSprite(key, color);
-    const s = size * (star ? 0.7 : 0.9);
+    // Glass bubble: inner core glow pulses on the beat UNDER the glass, so it looks lit from within.
+    const core = this.getCoreSprite(key, color);
+    const cs = size * (0.62 + this.beatNow * 0.1);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.translate(x, y);
-    ctx.rotate((-songMs * 0.0013 - phase * 0.0011) % (Math.PI * 2));
-    ctx.drawImage(swirl, -s / 2, -s / 2, s, s);
+    ctx.globalAlpha = alpha * (0.32 + this.beatNow * 0.25);
+    ctx.drawImage(core, x - cs / 2, y - cs / 2 + size * 0.06, cs, cs);
     ctx.restore();
+    // A very slightly see-through bubble (the lanes faintly show through).
+    ctx.globalAlpha = alpha * 0.94;
+    const b = size * 1.08;
+    ctx.drawImage(this.getOrbSprite(key, color), x - b / 2, y - b / 2, b, b);
     ctx.globalAlpha = 1;
   }
 
@@ -1559,45 +1628,81 @@ export class GameEngine {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // 1) wide soft outer glow (additive, cheap — no shadowBlur).
+    // GLASS TUBE — a translucent, liquid-lit 3D tube that floats over the lanes.
+    // 0) floor shadow, offset down so the tube hovers.
+    ctx.save();
+    ctx.translate(wBar * 0.12, wBar * 0.38);
+    trace();
+    ctx.strokeStyle = `rgba(0,0,0,${broken ? 0.15 : 0.32})`;
+    ctx.lineWidth = wBar * 1.05;
+    ctx.stroke();
+    ctx.restore();
+    // 1) soft neon aura.
     if (!broken) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       trace();
-      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.35), active ? 0.26 : 0.18);
-      ctx.lineWidth = wBar + (active ? 14 : 9);
+      ctx.strokeStyle = rgbCss(lightenRGB(body, 0.3), active ? 0.24 : 0.15);
+      ctx.lineWidth = wBar * 1.9;
       ctx.stroke();
       ctx.restore();
     }
-    // 2) glassy body.
+    // 2) rounded cross-section, smooth: a crisp dark keyline, then many thin graded layers from the
+    //    deep edge color to a glowing core (cosine profile = a true cylinder, no visible banding).
+    //    Each layer is translucent, so the tube's edges stay see-through while the core glows solid.
     trace();
-    ctx.strokeStyle = rgbCss(lightenRGB(body, active ? 0.4 : 0.26), active ? 0.95 : 0.82);
-    ctx.lineWidth = wBar;
+    ctx.strokeStyle = rgbCss(darkenRGB(body, 0.6), 0.8);
+    ctx.lineWidth = wBar + 2.5;
     ctx.stroke();
-    // 3) bright core.
-    trace();
-    ctx.strokeStyle = rgbCss(lightenRGB(body, 0.9), active ? 1 : 0.92);
-    ctx.lineWidth = wBar * 0.3;
-    ctx.stroke();
-    // 4) thin white sheen + energy flowing along the ribbon (replaces the old cheap dashes).
+    const LAYERS = 11;
+    const edge = darkenRGB(body, 0.35);
+    const core = lightenRGB(body, 0.82);
+    for (let k = 0; k < LAYERS; k++) {
+      const t = k / (LAYERS - 1); // 0 = outer edge … 1 = center
+      const shade = 1 - Math.cos((t * Math.PI) / 2); // ease toward the core
+      const col: RGB = [
+        edge[0] + (core[0] - edge[0]) * shade,
+        edge[1] + (core[1] - edge[1]) * shade,
+        edge[2] + (core[2] - edge[2]) * shade,
+      ];
+      trace();
+      ctx.strokeStyle = rgbCss(col, k === 0 ? (active ? 0.82 : 0.7) : active ? 0.5 : 0.41);
+      ctx.lineWidth = Math.max(1, wBar * (1 - t * 0.86));
+      ctx.stroke();
+    }
+    // 3) glossy specular streak riding the upper-left side of the tube.
     if (!broken) {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(-wBar * 0.2, -wBar * 0.14);
       trace();
-      ctx.strokeStyle = `rgba(255,255,255,${active ? 0.5 : 0.3})`;
-      ctx.lineWidth = Math.max(1.5, wBar * 0.12);
+      ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+      ctx.lineWidth = Math.max(1.5, wBar * 0.11);
       ctx.stroke();
-      const flow = 3;
-      for (let k = 0; k < flow; k++) {
-        const f = ((songMs / 620) + k / flow) % 1;
-        const idx = Math.min(pts.length - 1, Math.floor(f * (pts.length - 1)));
-        const [px, py] = pts[idx];
-        ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - f) + 0.2})`;
+      ctx.restore();
+      // 4) bubbles drifting along inside the tube toward the finish (shows the drag direction).
+      const count = 5;
+      for (let k = 0; k < count; k++) {
+        const f = ((songMs / 900) + k / count) % 1;
+        const fi = f * (pts.length - 1);
+        const i0 = Math.floor(fi);
+        const i1 = Math.min(pts.length - 1, i0 + 1);
+        const fr = fi - i0;
+        const bx = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * fr + Math.sin(songMs / 260 + k * 2.1) * wBar * 0.14;
+        const by = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * fr;
+        const br = wBar * (0.1 + ((k * 37) % 5) * 0.025);
+        const a = Math.sin(f * Math.PI);
+        ctx.fillStyle = `rgba(255,255,255,${0.14 * a})`;
+        ctx.strokeStyle = `rgba(255,255,255,${0.75 * a})`;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.arc(px, py, wBar * 0.26, 0, Math.PI * 2);
+        ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = `rgba(255,255,255,${0.9 * a})`;
+        ctx.beginPath();
+        ctx.arc(bx - br * 0.35, by - br * 0.35, br * 0.28, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.restore();
     }
 
     // 5) END NODE — an obvious target where the slide finishes. When a tap caps the end, add a
@@ -1608,11 +1713,21 @@ export class GameEngine {
       const pr = 0.5 + 0.5 * Math.sin(songMs / 140);
       const baseR = this.laneW * 0.25;
       ctx.save();
+      // glass target cap: translucent disc + bright rim
+      ctx.fillStyle = rgbCss(body, 0.28);
+      ctx.beginPath();
+      ctx.arc(ex, ey, baseR, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = rgbCss(lightenRGB(body, 0.6), 0.9);
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(ex, ey, baseR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ex, ey, baseR * 0.78, Math.PI * 1.1, Math.PI * 1.55);
       ctx.stroke();
       if (n.hasEndCap) {
         ctx.strokeStyle = rgbCss(lightenRGB(body, 0.5), 0.3 + 0.4 * pr);
