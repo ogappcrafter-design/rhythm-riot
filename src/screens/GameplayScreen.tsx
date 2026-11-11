@@ -152,6 +152,8 @@ export function GameplayScreen({ trackId, difficulty, challenge }: { trackId: st
       onFinish: handleFinish,
     });
     engineRef.current = engine;
+    // Dev-only perf/debug handle (stripped from production builds).
+    if (import.meta.env.DEV) (window as unknown as { __rrEngine?: GameEngine }).__rrEngine = engine;
     void clock.start().then(() => {
       engine.start();
       setPhase('playing');

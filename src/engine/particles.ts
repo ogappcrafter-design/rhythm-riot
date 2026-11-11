@@ -120,48 +120,61 @@ export class ParticleField {
     }
   }
 
-  private drawShard(ctx: CanvasRenderingContext2D, p: Shard): void {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.rot);
-    ctx.beginPath();
+  /** Append one shard's polygon to the current path (rotation done in math — no save/restore). */
+  private traceShard(ctx: CanvasRenderingContext2D, p: Shard): void {
     const r = p.size;
+    const c = Math.cos(p.rot);
+    const sn = Math.sin(p.rot);
     for (let i = 0; i < p.sides; i++) {
       const a = (i / p.sides) * Math.PI * 2;
-      const px = Math.cos(a) * r;
-      const py = Math.sin(a) * r * 0.7;
+      const lx = Math.cos(a) * r;
+      const ly = Math.sin(a) * r * 0.7;
+      const px = p.x + lx * c - ly * sn;
+      const py = p.y + lx * sn + ly * c;
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
     ctx.closePath();
-    ctx.fill();
-    ctx.restore();
   }
 
-  draw(
-    ctx: CanvasRenderingContext2D,
-    ambientColor: RGB,
-    moodNorm: number,
-    glowEnabled: boolean,
-  ): void {
-    // Ambient
+  /**
+   * Batched: every ambient shard goes into ONE path / one fill, and burst shards are bucketed by
+   * fade level into a handful of fills — instead of a save/translate/rotate/fill/restore per shard
+   * (up to ~350 separate fills a frame on a busy hard chart, a big source of phone lag).
+   */
+  draw(ctx: CanvasRenderingContext2D, ambientColor: RGB, moodNorm: number, glowEnabled: boolean): void {
     ctx.globalCompositeOperation = 'lighter';
     if (glowEnabled) {
       ctx.shadowBlur = 6 + moodNorm * 14;
       ctx.shadowColor = rgbCss(ambientColor, 0.9);
     }
-    for (const p of this.ambient) {
+    if (this.ambient.length) {
       ctx.fillStyle = rgbCss(ambientColor, 0.25 + moodNorm * 0.4);
-      this.drawShard(ctx, p);
+      ctx.beginPath();
+      for (const p of this.ambient) this.traceShard(ctx, p);
+      ctx.fill();
     }
-
-    // Bursts
-    for (const p of this.burst) {
-      if (glowEnabled) ctx.shadowColor = rgbCss(this.lastBurstColor, p.life);
-      ctx.fillStyle = rgbCss(this.lastBurstColor, Math.max(0, p.life));
-      this.drawShard(ctx, p);
+    if (this.burst.length) {
+      const BUCKETS = 5;
+      for (let b = 0; b < BUCKETS; b++) {
+        const lo = b / BUCKETS;
+        const hi = (b + 1) / BUCKETS;
+        let any = false;
+        for (const p of this.burst) {
+          if (Math.min(BUCKETS - 1, Math.floor(Math.max(0, p.life) * BUCKETS)) !== b) continue;
+          if (!any) {
+            ctx.beginPath();
+            any = true;
+          }
+          this.traceShard(ctx, p);
+        }
+        if (!any) continue;
+        const alpha = (lo + hi) / 2;
+        if (glowEnabled) ctx.shadowColor = rgbCss(this.lastBurstColor, alpha);
+        ctx.fillStyle = rgbCss(this.lastBurstColor, alpha);
+        ctx.fill();
+      }
     }
-
     ctx.shadowBlur = 0;
     ctx.globalCompositeOperation = 'source-over';
   }

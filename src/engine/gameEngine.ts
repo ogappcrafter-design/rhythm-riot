@@ -98,6 +98,25 @@ interface FlowStar {
 }
 
 // ---- DDR-style playfield geometry (flat lanes, notes rise into top receptors) ----
+const MIN_RENDER_SCALE = 1.25;
+const RENDER_SCALE_KEY = 'rr.renderScale';
+function loadRenderScale(): number {
+  try {
+    const v = Number(localStorage.getItem(RENDER_SCALE_KEY));
+    if (Number.isFinite(v) && v >= MIN_RENDER_SCALE && v <= 2) return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return 2;
+}
+function saveRenderScale(v: number): void {
+  try {
+    localStorage.setItem(RENDER_SCALE_KEY, String(v));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 const APPROACH_MS = 1300; // snappy DDR-ish scroll speed
 const GAUGE_Y_FRAC = 0.076; // groove/dance gauge, tucked just under the top HUD
 const RECEPTOR_FRAC = 0.205; // stationary receptor targets near the top
@@ -193,6 +212,17 @@ export class GameEngine {
   private beatMs = 500;
 
   private dpr = 1;
+  /** Adaptive render resolution: the backing-store density cap. Starts at 2× and steps down
+   *  (never below 1.25×) when the device can't hold frame rate — fill rate is the phone bottleneck. */
+  private scaleCap = loadRenderScale();
+  private perfAccMs = 0;
+  private perfFrames = 0;
+  private perfStartAt = 0;
+  /** Cached static scene layers (sky, sun, mountains, floor + the neon road glow), rebuilt only when
+   *  the mood colorway / combo tier / size changes — two blits a frame instead of ~30 draw calls. */
+  private backdrop: { key: string; base: HTMLCanvasElement; glow: HTMLCanvasElement } | null = null;
+  /** Soft floor-shadow sprite under each note (was a radial gradient built per note per frame). */
+  private shadowSprite: HTMLCanvasElement | null = null;
   /** Index of the first beat line still ahead of the receptors (scan cursor). */
   private beatCursor = 0;
   /** Beat pulse of the current frame (1 on the beat → 0), for note glow. */
@@ -271,19 +301,50 @@ export class GameEngine {
     // Render density is capped at 2× — the scene is gradient/effect-heavy, and a full 3× backing
     // store (≈2.25× more pixels to fill every frame) is the single biggest cause of lag on phones.
     // 2× still looks crisp; sprites are pre-rendered at high resolution so they stay sharp.
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.w = Math.max(1, rect.width);
     this.h = Math.max(1, rect.height);
-    canvas.width = Math.round(this.w * this.dpr);
-    canvas.height = Math.round(this.h * this.dpr);
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = 'medium';
+    this.applyRenderScale();
     this.particles.resize(this.w, this.h);
     this.dotSprites.clear();
     this.swirlSprites.clear();
     this.starSprites.clear();
     this.initFlow();
+  }
+
+  /** Size the backing store for the current density cap (also used when the cap adapts mid-song). */
+  private applyRenderScale(): void {
+    const { canvas } = this.opts;
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.scaleCap);
+    canvas.width = Math.round(this.w * this.dpr);
+    canvas.height = Math.round(this.h * this.dpr);
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'medium';
+    this.backdrop = null;
+  }
+
+  /**
+   * Dynamic resolution: average the real frame interval over ~3/4 s; if the device is missing
+   * frames (< ~48 fps), drop the render density one notch. Smooth motion matters far more than
+   * pixel density in a rhythm game, and fill rate is what chokes phone GPUs. The learned cap is
+   * remembered so the next song starts at the right level with no hitch.
+   */
+  private adaptRenderScale(rawDt: number, now: number): void {
+    if (rawDt > 100) return; // tab switch / pause / GC hiccup — not representative
+    if (now - this.perfStartAt < 1500) return; // let sprite warm-up finish first
+    this.perfAccMs += rawDt;
+    this.perfFrames += 1;
+    if (this.perfFrames < 45) return;
+    const avg = this.perfAccMs / this.perfFrames;
+    this.perfAccMs = 0;
+    this.perfFrames = 0;
+    const native = window.devicePixelRatio || 1;
+    if (avg > 21 && this.scaleCap > MIN_RENDER_SCALE && native > MIN_RENDER_SCALE) {
+      this.scaleCap = Math.max(MIN_RENDER_SCALE, Math.min(this.scaleCap, native) - 0.25);
+      saveRenderScale(this.scaleCap);
+      this.applyRenderScale();
+      this.perfStartAt = now - 1000; // short settle before judging the new level
+    }
   }
 
   private initFlow(): void {
@@ -311,6 +372,7 @@ export class GameEngine {
       if (!this.audioEndedAt) this.audioEndedAt = performance.now();
     });
     this.lastFrame = performance.now();
+    this.perfStartAt = this.lastFrame;
     this.raf = requestAnimationFrame(this.frame);
   }
   pause(): void {
@@ -565,8 +627,10 @@ export class GameEngine {
     this.lastFrame = now;
     if (this.paused) {
       this.drawPausedTint();
+      this.perfStartAt = now; // don't judge frame rate across a pause
       return;
     }
+    this.adaptRenderScale(dt, now);
     if (dt > 60) dt = 60;
 
     const songMs = this.opts.clock.getPositionMs();
@@ -1019,29 +1083,26 @@ export class GameEngine {
     const phase = (((songMs % this.beatMs) + this.beatMs) % this.beatMs) / this.beatMs;
     const beatPulse = Math.pow(1 - phase, 3); // 1 right on the beat → 0
     this.beatNow = beatPulse;
-
-    // Background gradient (mood-graded)
-    const grad = ctx.createLinearGradient(0, 0, 0, this.h);
-    grad.addColorStop(0, rgbCss(cw.bgGlow));
-    grad.addColorStop(0.5, rgbCss(cw.bgDeep));
-    grad.addColorStop(1, rgbCss(cw.bgDeep));
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.w, this.h);
-
-    // Beat-synced ambient flash — the whole scene breathes on the tempo (subtle).
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = rgbCss(cw.glow, 0.02 + beatPulse * 0.05 * (0.4 + moodNorm));
-    ctx.fillRect(0, 0, this.w, this.h);
-    ctx.restore();
-
-    this.drawFlow(cw.particle, moodNorm);
-
     // Combo tiers: 50 = "hot combo" (rainbow notes + side sparkles + grid glow), 100 = star power
     // (notes become glowing swirling stars, grid glow maxes out).
     const comboGlow = this.combo >= 100 ? 1 : this.combo >= 50 ? 0.7 : 0;
-    this.drawPlayfield(cw, moodNorm, beatPulse);
-    this.drawGridRoad(cw, songMs, beatPulse, moodNorm, comboGlow);
+
+    // The whole static scene — mood background, dark playfield panel, starry sky, banded sun, neon
+    // mountains, black road floor — is ONE cached blit; the road's neon rails, sun reflection and
+    // horizon line are a second, additive blit that breathes on the beat.
+    const bd = this.getBackdrop(moodNorm, comboGlow);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bd.base, 0, 0, this.w, this.h);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.6 + beatPulse * 0.4;
+    ctx.drawImage(bd.glow, 0, 0, this.w, this.h);
+    ctx.restore();
+
+    this.drawFlow(cw.particle, moodNorm);
+    this.drawPlayfieldPulse(cw, moodNorm, beatPulse);
+    this.drawRoadMotion(songMs, beatPulse, moodNorm, comboGlow);
     this.drawLanes(cw, comboGlow, beatPulse, moodNorm);
     this.particles.draw(ctx, cw.particle, moodNorm, false);
     // Receptors sit UNDER the notes, so a note is never hidden at the exact moment it lands.
@@ -1056,18 +1117,201 @@ export class GameEngine {
     this.drawEncouragement();
   }
 
-  /** Dark vertical playfield panel so the bright arrows pop (DDR keeps a dim column strip). */
-  private drawPlayfield(cw: ReturnType<typeof moodColorway>, moodNorm: number, beatPulse: number): void {
-    const ctx = this.ctx;
-    const top = this.receptorY - this.laneW * 0.7;
-    const g = ctx.createLinearGradient(0, top, 0, this.spawnY + 30);
-    g.addColorStop(0, 'rgba(3,4,12,0.15)');
-    g.addColorStop(0.5, 'rgba(3,4,12,0.5)');
-    g.addColorStop(1, 'rgba(3,4,12,0.15)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, top, this.w, this.spawnY - top + 30);
+  /** Road geometry shared by the cached backdrop and the per-frame road motion. */
+  private roadGeom() {
+    const top = this.receptorY - this.laneW * 0.7; // horizon (far)
+    const bot = this.spawnY + 30; // near / viewer
+    const cx = this.w / 2;
+    return {
+      top,
+      bot,
+      h: bot - top,
+      cx,
+      skyTop: Math.max(this.gaugeY + 14, top - this.h * 0.14), // sky band above the horizon
+      fOuter: this.laneW * (this.laneCount / 2 + 4.5), // very wide near plane = road opens up at you
+      depthX: (f: number, sf: number) => cx + f * (0.006 + 0.994 * sf), // strong convergence to a point
+    };
+  }
 
-    // Beat-synced glow bar across the receptor line.
+  /** The cached scene layers, rebuilt only when the (quantized) mood colorway, combo tier or size
+   *  changes — a few times a song instead of every frame. */
+  private getBackdrop(moodNorm: number, comboGlow: number): { base: HTMLCanvasElement; glow: HTMLCanvasElement } {
+    const q = Math.round(moodNorm * 16) / 16;
+    const key = `${q}|${comboGlow}|${this.w}x${this.h}@${this.dpr}|${this.laneCount}`;
+    if (this.backdrop && this.backdrop.key === key) return this.backdrop;
+    const W = Math.max(1, Math.round(this.w * this.dpr));
+    const H = Math.max(1, Math.round(this.h * this.dpr));
+    const base = this.backdrop?.base ?? document.createElement('canvas');
+    const glow = this.backdrop?.glow ?? document.createElement('canvas');
+    base.width = W;
+    base.height = H;
+    glow.width = W;
+    glow.height = H;
+    const bc = base.getContext('2d', { alpha: false });
+    const gc = glow.getContext('2d');
+    if (bc && gc) {
+      bc.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      gc.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this.paintBackdrop(bc, gc, moodColorway(this.opts.palette, q), comboGlow);
+    }
+    this.backdrop = { key, base, glow };
+    return this.backdrop;
+  }
+
+  /** Paints the static scene into `c` and the road's neon glow (at full beat brightness) into `g`.
+   *  A synthwave scene BEHIND the note grid: a neon grid road flowing toward the viewer, a banded
+   *  retro SUN on the horizon, glowing wireframe MOUNTAINS, and a STARFIELD. The grid stays
+   *  matrix-green; the sun, mountains and reflection take the song's palette. */
+  private paintBackdrop(c: CanvasRenderingContext2D, g: CanvasRenderingContext2D, cw: ReturnType<typeof moodColorway>, comboGlow: number): void {
+    const { top, bot, h, cx, skyTop, depthX } = this.roadGeom();
+    // Mood-graded background.
+    const bg = c.createLinearGradient(0, 0, 0, this.h);
+    bg.addColorStop(0, rgbCss(cw.bgGlow));
+    bg.addColorStop(0.5, rgbCss(cw.bgDeep));
+    bg.addColorStop(1, rgbCss(cw.bgDeep));
+    c.fillStyle = bg;
+    c.fillRect(0, 0, this.w, this.h);
+    // Dark vertical playfield panel so the bright notes pop (DDR keeps a dim column strip).
+    const pf = c.createLinearGradient(0, top, 0, bot);
+    pf.addColorStop(0, 'rgba(3,4,12,0.15)');
+    pf.addColorStop(0.5, 'rgba(3,4,12,0.5)');
+    pf.addColorStop(1, 'rgba(3,4,12,0.15)');
+    c.fillStyle = pf;
+    c.fillRect(0, top, this.w, bot - top);
+    if (h <= 10) return;
+
+    const GREEN: RGB = [46, 255, 128];
+    const sunCol = cw.glow;
+    const sunHot = lightenRGB(cw.glow, 0.85);
+    const mtnCol = lightenRGB(cw.note, 0.35);
+    const pulse = 0.85; // the sky is baked at a steady glow; the road glow layer carries the beat
+
+    // ======================= SKY (farthest — sun, mountains, stars) ===================
+    c.save();
+    c.beginPath();
+    c.rect(0, skyTop, this.w, top - skyTop);
+    c.clip();
+    const sky = c.createLinearGradient(0, skyTop, 0, top);
+    sky.addColorStop(0, 'rgba(0,1,6,0.92)');
+    sky.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.55), 0.85));
+    c.fillStyle = sky;
+    c.fillRect(0, skyTop, this.w, top - skyTop);
+    c.globalCompositeOperation = 'lighter';
+    for (let st = 0; st < 64; st++) {
+      const sx = (Math.sin(st * 12.9898) * 0.5 + 0.5) * this.w;
+      const sy = skyTop + (Math.sin(st * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.95;
+      const tw = 0.4 + 0.6 * (Math.sin(st * 2.31) * 0.5 + 0.5);
+      const r = 0.7 + (Math.sin(st * 3.7) * 0.5 + 0.5) * 0.9;
+      c.fillStyle = `rgba(220,240,255,${0.5 * tw})`;
+      c.beginPath();
+      c.arc(sx, sy, r, 0, Math.PI * 2);
+      c.fill();
+    }
+    // Banded retro SUN rising from the horizon (most of the disc below it — classic sunset).
+    const sunR = this.laneW * 1.35;
+    const sunGlow = c.createRadialGradient(cx, top, 0, cx, top, sunR * 1.7);
+    sunGlow.addColorStop(0, rgbCss(sunHot, 0.6 * pulse + comboGlow * 0.2));
+    sunGlow.addColorStop(0.5, rgbCss(sunCol, 0.28 * pulse));
+    sunGlow.addColorStop(1, rgbCss(sunCol, 0));
+    c.fillStyle = sunGlow;
+    c.fillRect(0, skyTop, this.w, top - skyTop);
+    c.globalCompositeOperation = 'source-over';
+    const disc = c.createLinearGradient(cx, top - sunR, cx, top);
+    disc.addColorStop(0, rgbCss(sunHot, 1));
+    disc.addColorStop(0.55, rgbCss(sunCol, 1));
+    disc.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.2), 1));
+    c.fillStyle = disc;
+    c.beginPath();
+    c.arc(cx, top, sunR, Math.PI, 2 * Math.PI);
+    c.fill();
+    c.fillStyle = 'rgba(0,1,6,0.92)';
+    for (let b = 0; b < 9; b++) {
+      const by = top - b * b * (sunR * 0.012) - 1;
+      const bh = 1.5 + b * 0.6;
+      if (by < top - sunR) break;
+      c.fillRect(cx - sunR, by - bh, sunR * 2, bh);
+    }
+    // Glowing wireframe MOUNTAINS along the horizon (far dim ridge, near bright ridge).
+    const ridge = (maxH: number, col: RGB, alpha: number, seedOff: number, lw: number) => {
+      const steps = 30;
+      c.beginPath();
+      c.moveTo(0, top);
+      for (let i = 0; i <= steps; i++) {
+        const x = (i / steps) * this.w;
+        const n = Math.sin(i * 1.7 + seedOff) * 0.5 + Math.sin(i * 0.6 + seedOff * 2) * 0.32 + Math.sin(i * 3.3 + seedOff) * 0.18;
+        c.lineTo(x, top - maxH * (0.3 + 0.7 * (n * 0.5 + 0.5)));
+      }
+      c.lineTo(this.w, top);
+      c.closePath();
+      c.globalCompositeOperation = 'source-over';
+      c.fillStyle = 'rgba(0,1,5,0.95)';
+      c.fill();
+      c.globalCompositeOperation = 'lighter';
+      c.strokeStyle = rgbCss(col, alpha);
+      c.lineWidth = lw;
+      c.lineJoin = 'round';
+      c.stroke();
+    };
+    ridge((top - skyTop) * 0.95, darkenRGB(mtnCol, 0.2), 0.4 * pulse, 2.1, 1.3);
+    ridge((top - skyTop) * 0.62, mtnCol, 0.72 * pulse + comboGlow * 0.15, 11.3, 1.8);
+    c.restore();
+
+    // ============================ ROAD FLOOR ==========================================
+    // Black floor — darkest at the horizon so the grid recedes into black.
+    const floor = c.createLinearGradient(0, top, 0, bot);
+    floor.addColorStop(0, 'rgba(0,0,0,0.92)');
+    floor.addColorStop(0.5, 'rgba(0,8,3,0.78)');
+    floor.addColorStop(1, 'rgba(0,12,5,0.5)');
+    c.fillStyle = floor;
+    c.fillRect(0, top, this.w, h);
+
+    // ---- glow layer (drawn additively each frame at the beat's brightness) ----
+    g.save();
+    g.beginPath();
+    g.rect(0, top, this.w, h);
+    g.clip();
+    g.globalCompositeOperation = 'lighter';
+    g.lineCap = 'round';
+    // Sun reflection shimmering down the floor (narrow at the horizon, widening to you).
+    const refl = g.createLinearGradient(0, top, 0, bot);
+    refl.addColorStop(0, rgbCss(sunHot, 0.18));
+    refl.addColorStop(1, rgbCss(sunCol, 0));
+    g.fillStyle = refl;
+    g.beginPath();
+    g.moveTo(cx - 3, top);
+    g.lineTo(cx + 3, top);
+    g.lineTo(cx + this.laneW * 0.85, bot);
+    g.lineTo(cx - this.laneW * 0.85, bot);
+    g.closePath();
+    g.fill();
+    // Converging vertical rails — few, wide, thick neon lines rushing to the vanishing point.
+    for (let i = -2; i <= this.laneCount + 2; i += 1) {
+      const xBot = i * this.laneW;
+      const f = xBot - cx;
+      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 1.1));
+      g.strokeStyle = rgbCss(GREEN, 0.06 + 0.2 * edgeFade + comboGlow * 0.07);
+      g.lineWidth = 1.8 + edgeFade * 2.2;
+      g.beginPath();
+      g.moveTo(depthX(f, 0), top);
+      g.lineTo(xBot, bot);
+      g.stroke();
+    }
+    g.restore();
+    // Bright horizon line sealing the sky to the floor.
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    g.strokeStyle = rgbCss(sunHot, Math.min(1, 0.55 + comboGlow * 0.2));
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(0, top);
+    g.lineTo(this.w, top);
+    g.stroke();
+    g.restore();
+  }
+
+  /** Beat-synced glow bar across the receptor line. */
+  private drawPlayfieldPulse(cw: ReturnType<typeof moodColorway>, moodNorm: number, beatPulse: number): void {
+    const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = rgbCss(cw.glow, (0.05 + moodNorm * 0.08) * (0.4 + beatPulse * 0.6));
@@ -1075,188 +1319,49 @@ export class GameEngine {
     ctx.restore();
   }
 
-  /** A full synthwave / retrowave scene BEHIND the flat note grid: a neon grid road flowing toward
-   *  the viewer, a banded retro SUN on the horizon, glowing wireframe MOUNTAINS, and a STARFIELD —
-   *  the note grid floats above it (lo-fi music-video look). The grid stays matrix-green; the sun,
-   *  mountains and reflection take the song's palette so each track gets its own neon sky. No car. */
-  private drawGridRoad(cw: ReturnType<typeof moodColorway>, songMs: number, beatPulse: number, moodNorm: number, comboGlow: number): void {
+  /** The moving parts of the road: rungs rushing head-on at you and the digital rain. */
+  private drawRoadMotion(songMs: number, beatPulse: number, moodNorm: number, comboGlow: number): void {
     const ctx = this.ctx;
-    const top = this.receptorY - this.laneW * 0.7; // horizon (far)
-    const bot = this.spawnY + 30; // near / viewer
-    const h = bot - top;
+    const { top, h, cx, fOuter, depthX } = this.roadGeom();
     if (h <= 10) return;
-    const cx = this.w / 2;
     const GREEN: RGB = [46, 255, 128];
     const DIM: RGB = [18, 132, 70];
     const RAIN: RGB = [150, 255, 180];
-    const sunCol = cw.glow;
-    const sunHot = lightenRGB(cw.glow, 0.85);
-    const mtnCol = lightenRGB(cw.note, 0.35);
     const pulse = 0.6 + beatPulse * 0.4;
-    const fOuter = this.laneW * (this.laneCount / 2 + 4.5); // very wide near plane = road opens up at you
-    const depthX = (f: number, sf: number) => cx + f * (0.006 + 0.994 * sf); // strong convergence to a point
-    const skyTop = Math.max(this.gaugeY + 14, top - this.h * 0.14); // sky band above the horizon
-
-    // ======================= SKY (farthest — sun, mountains, stars) ===================
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, skyTop, this.w, top - skyTop);
-    ctx.clip();
-    // Dark sky with a warm glow pooling at the horizon.
-    const sky = ctx.createLinearGradient(0, skyTop, 0, top);
-    sky.addColorStop(0, 'rgba(0,1,6,0.92)');
-    sky.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.55), 0.85));
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, skyTop, this.w, top - skyTop);
-
-    // Stars (deterministic positions, twinkling).
-    ctx.globalCompositeOperation = 'lighter';
-    for (let s = 0; s < 64; s++) {
-      const sx = (Math.sin(s * 12.9898) * 0.5 + 0.5) * this.w;
-      const sy = skyTop + (Math.sin(s * 78.233) * 0.5 + 0.5) * (top - skyTop) * 0.95;
-      const tw = 0.4 + 0.6 * (Math.sin(songMs / 600 + s) * 0.5 + 0.5);
-      const r = 0.7 + (Math.sin(s * 3.7) * 0.5 + 0.5) * 0.9;
-      ctx.fillStyle = `rgba(220,240,255,${0.5 * tw})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Banded retro SUN rising from the horizon — wide radius so a big, prominent half-sun fills the
-    // horizon (most of the disc sits below it, the classic synthwave sunset).
-    const sunR = this.laneW * 1.35;
-    const sunGlow = ctx.createRadialGradient(cx, top, 0, cx, top, sunR * 1.7);
-    sunGlow.addColorStop(0, rgbCss(sunHot, 0.6 * pulse + comboGlow * 0.2));
-    sunGlow.addColorStop(0.5, rgbCss(sunCol, 0.28 * pulse));
-    sunGlow.addColorStop(1, rgbCss(sunCol, 0));
-    ctx.fillStyle = sunGlow;
-    ctx.fillRect(0, skyTop, this.w, top - skyTop);
-    // Sun disc.
-    ctx.globalCompositeOperation = 'source-over';
-    const disc = ctx.createLinearGradient(cx, top - sunR, cx, top);
-    disc.addColorStop(0, rgbCss(sunHot, 1));
-    disc.addColorStop(0.55, rgbCss(sunCol, 1));
-    disc.addColorStop(1, rgbCss(darkenRGB(sunCol, 0.2), 1));
-    ctx.fillStyle = disc;
-    ctx.beginPath();
-    ctx.arc(cx, top, sunR, Math.PI, 2 * Math.PI);
-    ctx.fill();
-    // Scanline bands cut across the lower part of the sun (classic synthwave sun).
-    ctx.fillStyle = 'rgba(0,1,6,0.92)';
-    for (let b = 0; b < 9; b++) {
-      const by = top - (b * b) * (sunR * 0.012) - 1;
-      const bh = 1.5 + b * 0.6;
-      if (by < top - sunR) break;
-      ctx.fillRect(cx - sunR, by - bh, sunR * 2, bh);
-    }
-
-    // Glowing wireframe MOUNTAINS along the horizon (far dim ridge, near bright ridge).
-    const drawRidge = (maxH: number, col: RGB, alpha: number, seedOff: number, lw: number) => {
-      const steps = 30;
-      ctx.beginPath();
-      ctx.moveTo(0, top);
-      for (let i = 0; i <= steps; i++) {
-        const x = (i / steps) * this.w;
-        const n =
-          Math.sin(i * 1.7 + seedOff) * 0.5 +
-          Math.sin(i * 0.6 + seedOff * 2) * 0.32 +
-          Math.sin(i * 3.3 + seedOff) * 0.18;
-        const hgt = maxH * (0.3 + 0.7 * (n * 0.5 + 0.5));
-        ctx.lineTo(x, top - hgt);
-      }
-      ctx.lineTo(this.w, top);
-      ctx.closePath();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = 'rgba(0,1,5,0.95)'; // black silhouette
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = rgbCss(col, alpha);
-      ctx.lineWidth = lw;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-    };
-    drawRidge((top - skyTop) * 0.95, darkenRGB(mtnCol, 0.2), 0.4 * pulse, 2.1, 1.3); // far
-    drawRidge((top - skyTop) * 0.62, mtnCol, 0.72 * pulse + comboGlow * 0.15, 11.3, 1.8); // near
-    ctx.restore();
-
-    // ============================ ROAD FLOOR ==========================================
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, top, this.w, h);
     ctx.clip();
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // Black floor — darkest at the horizon so the grid recedes into black.
-    const floor = ctx.createLinearGradient(0, top, 0, bot);
-    floor.addColorStop(0, 'rgba(0,0,0,0.92)');
-    floor.addColorStop(0.5, 'rgba(0,8,3,0.78)');
-    floor.addColorStop(1, 'rgba(0,12,5,0.5)');
-    ctx.fillStyle = floor;
-    ctx.fillRect(0, top, this.w, h);
-
     ctx.globalCompositeOperation = 'lighter';
-
-    // Sun reflection shimmering down the floor (palette-colored, narrow at horizon, widening to you).
-    const refl = ctx.createLinearGradient(0, top, 0, bot);
-    refl.addColorStop(0, rgbCss(sunHot, 0.18 * pulse));
-    refl.addColorStop(1, rgbCss(sunCol, 0));
-    ctx.fillStyle = refl;
-    ctx.beginPath();
-    ctx.moveTo(cx - 3, top);
-    ctx.lineTo(cx + 3, top);
-    ctx.lineTo(cx + this.laneW * 0.85, bot);
-    ctx.lineTo(cx - this.laneW * 0.85, bot);
-    ctx.closePath();
-    ctx.fill();
-
-    // Converging vertical rails — FEW, WIDE, thick neon lines that strongly converge to the
-    // vanishing point (like the reference clips: a big road you're flying straight down).
-    for (let i = -2; i <= this.laneCount + 2; i += 1) {
-      const xBot = i * this.laneW;
-      const f = xBot - cx;
-      const edgeFade = 1 - Math.min(1, Math.abs(f) / (this.w * 1.1));
-      ctx.strokeStyle = rgbCss(GREEN, (0.06 + 0.2 * edgeFade) * pulse + comboGlow * 0.07);
-      ctx.lineWidth = 1.8 + edgeFade * 2.2;
-      ctx.beginPath();
-      ctx.moveTo(depthX(f, 0), top);
-      ctx.lineTo(xBot, bot);
-      ctx.stroke();
-    }
-
-    // Flowing horizontal rungs — FEW and WIDE APART, with a very steep perspective curve so the
-    // cells are tiny at the horizon and huge up close, rushing head-on at you (flying down the road).
+    // Flowing horizontal rungs — very steep perspective: tiny at the horizon, huge up close.
     const rungs = 15;
-    const speed = 0.00036 + moodNorm * 0.00042; // faster = stronger "coming at you"
-    const phase = ((songMs * speed) % 1 + 1) % 1;
+    const speed = 0.00036 + moodNorm * 0.00042;
+    const phase = (((songMs * speed) % 1) + 1) % 1;
     for (let i = 0; i < rungs; i++) {
       const p = (i / rungs + phase) % 1;
-      const sf = Math.pow(p, 3.5); // very steep bunching → big near cells
+      const sf = Math.pow(p, 3.5);
       const y = top + h * sf;
       const halfW = fOuter * (0.006 + 0.994 * sf);
       const a = (0.03 + 0.6 * sf) * pulse + comboGlow * 0.12;
       const col = sf > 0.45 ? GREEN : DIM;
-      ctx.strokeStyle = rgbCss(col, a * 0.5); // bloom underlay
-      ctx.lineWidth = 2 + sf * 6;
       ctx.beginPath();
       ctx.moveTo(cx - halfW, y);
       ctx.lineTo(cx + halfW, y);
+      ctx.strokeStyle = rgbCss(col, a * 0.5); // bloom underlay
+      ctx.lineWidth = 2 + sf * 6;
       ctx.stroke();
       ctx.strokeStyle = rgbCss(col, a); // bright core
       ctx.lineWidth = 0.8 + sf * 2.6;
-      ctx.beginPath();
-      ctx.moveTo(cx - halfW, y);
-      ctx.lineTo(cx + halfW, y);
       ctx.stroke();
     }
-
     // Digital rain — subtle streaks falling down the perspective toward you.
     const drops = this.laneCount * 6;
     for (let d = 0; d < drops; d++) {
       const seed = d * 1.37;
       const lane01 = Math.sin(seed * 12.9) * 0.5 + 0.5;
       const f = (lane01 - 0.5) * 2 * fOuter;
-      const t = ((songMs * (0.0003 + Math.abs(Math.sin(seed)) * 0.00018)) + (seed % 1)) % 1;
+      const t = (songMs * (0.0003 + Math.abs(Math.sin(seed)) * 0.00018) + (seed % 1)) % 1;
       const sf = Math.pow(t, 2.6);
       const y = top + h * sf;
       const x = depthX(f, sf);
@@ -1268,17 +1373,6 @@ export class GameEngine {
       ctx.lineTo(x, y);
       ctx.stroke();
     }
-    ctx.restore();
-
-    // Bright horizon line sealing the sky to the floor.
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = rgbCss(sunHot, 0.55 * pulse + comboGlow * 0.2);
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(0, top);
-    ctx.lineTo(this.w, top);
-    ctx.stroke();
     ctx.restore();
   }
 
@@ -1535,23 +1629,28 @@ export class GameEngine {
   /** A soft elliptical shadow cast below a note onto the road — the grounding cue that makes the
    *  note (and the whole grid) read as floating above the lo-fi floor. */
   private drawNoteShadow(x: number, y: number, size: number, alpha: number): void {
+    if (!this.shadowSprite) {
+      const S = 64;
+      const cv = document.createElement('canvas');
+      cv.width = S;
+      cv.height = S;
+      const c = cv.getContext('2d');
+      if (c) {
+        const g = c.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+        g.addColorStop(0, 'rgba(0,0,0,0.5)');
+        g.addColorStop(0.6, 'rgba(0,0,0,0.28)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g;
+        c.fillRect(0, 0, S, S);
+      }
+      this.shadowSprite = cv;
+    }
     const ctx = this.ctx;
-    const sy = y + size * 0.62;
     const rw = size * 0.44;
     const rh = size * 0.16;
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.translate(x, sy);
-    ctx.scale(1, rh / rw);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rw);
-    g.addColorStop(0, `rgba(0,0,0,${0.5 * alpha})`);
-    g.addColorStop(0.6, `rgba(0,0,0,${0.28 * alpha})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, rw, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(this.shadowSprite, x - rw, y + size * 0.62 - rh, rw * 2, rh * 2);
+    ctx.globalAlpha = 1;
   }
 
   /** Draw a glowing note head plus its swirling inner flow (rotated over time) at (x,y). When
@@ -1612,16 +1711,15 @@ export class GameEngine {
     }
     // Smooth the polyline into a flowing curve (quadratic through segment midpoints) so the ribbon
     // reads as a single smooth stroke rather than faceted segments.
-    const trace = () => {
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length - 1; i++) {
-        const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-        const my = (pts[i][1] + pts[i + 1][1]) / 2;
-        ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
-      }
-      ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
-    };
+    // Built ONCE per frame as a Path2D and re-stroked for every layer (was re-traced per layer).
+    const path = new Path2D();
+    path.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+      const my = (pts[i][1] + pts[i + 1][1]) / 2;
+      path.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+    }
+    path.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
 
     ctx.save();
     if (broken) ctx.globalAlpha = Math.max(0, 1 - brokenAge / 480);
@@ -1632,29 +1730,27 @@ export class GameEngine {
     // 0) floor shadow, offset down so the tube hovers.
     ctx.save();
     ctx.translate(wBar * 0.12, wBar * 0.38);
-    trace();
     ctx.strokeStyle = `rgba(0,0,0,${broken ? 0.15 : 0.32})`;
     ctx.lineWidth = wBar * 1.05;
-    ctx.stroke();
+    ctx.stroke(path);
     ctx.restore();
     // 1) soft neon aura.
     if (!broken) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      trace();
       ctx.strokeStyle = rgbCss(lightenRGB(body, 0.3), active ? 0.24 : 0.15);
       ctx.lineWidth = wBar * 1.9;
-      ctx.stroke();
+      ctx.stroke(path);
       ctx.restore();
     }
     // 2) rounded cross-section, smooth: a crisp dark keyline, then many thin graded layers from the
     //    deep edge color to a glowing core (cosine profile = a true cylinder, no visible banding).
     //    Each layer is translucent, so the tube's edges stay see-through while the core glows solid.
-    trace();
     ctx.strokeStyle = rgbCss(darkenRGB(body, 0.6), 0.8);
     ctx.lineWidth = wBar + 2.5;
-    ctx.stroke();
-    const LAYERS = 11;
+    ctx.stroke(path);
+    // 7 layers with slightly stronger alpha read the same as the old 11 at ~60% of the fill cost.
+    const LAYERS = 7;
     const edge = darkenRGB(body, 0.35);
     const core = lightenRGB(body, 0.82);
     for (let k = 0; k < LAYERS; k++) {
@@ -1665,19 +1761,17 @@ export class GameEngine {
         edge[1] + (core[1] - edge[1]) * shade,
         edge[2] + (core[2] - edge[2]) * shade,
       ];
-      trace();
-      ctx.strokeStyle = rgbCss(col, k === 0 ? (active ? 0.82 : 0.7) : active ? 0.5 : 0.41);
+      ctx.strokeStyle = rgbCss(col, k === 0 ? (active ? 0.82 : 0.7) : active ? 0.58 : 0.5);
       ctx.lineWidth = Math.max(1, wBar * (1 - t * 0.86));
-      ctx.stroke();
+      ctx.stroke(path);
     }
     // 3) glossy specular streak riding the upper-left side of the tube.
     if (!broken) {
       ctx.save();
       ctx.translate(-wBar * 0.2, -wBar * 0.14);
-      trace();
       ctx.strokeStyle = 'rgba(255,255,255,0.72)';
       ctx.lineWidth = Math.max(1.5, wBar * 0.11);
-      ctx.stroke();
+      ctx.stroke(path);
       ctx.restore();
       // 4) bubbles drifting along inside the tube toward the finish (shows the drag direction).
       const count = 5;
