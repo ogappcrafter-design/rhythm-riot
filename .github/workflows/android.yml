@@ -5,7 +5,8 @@ name: Build Android APK
 on:
   push:
     branches: [claude/new-session-0h125a]
-    paths-ignore: ['**.md']
+    # The web-only download page doesn't change the app — don't rebuild (and swap) the app for it.
+    paths-ignore: ['**.md', 'public/download.html', 'public/fonts/**']
   workflow_dispatch:
 
 permissions:

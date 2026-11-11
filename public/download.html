@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#05060f" />
+<title>Get Rhythm Riot</title>
+<link rel="icon" href="./favicon.svg" />
+<style>
+  @font-face { font-family: Bungee; src: url('./fonts/bungee.woff2') format('woff2'); font-display: swap; }
+  @font-face { font-family: 'Russo One'; src: url('./fonts/russo-one.woff2') format('woff2'); font-display: swap; }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100vh; color: #f4f2ff; font-family: 'Russo One', system-ui, sans-serif;
+    background:
+      radial-gradient(120% 60% at 50% 0%, rgba(124, 92, 255, 0.35), transparent 60%),
+      linear-gradient(180deg, #1b0638 0%, #3a1152 42%, #7a2170 52%, #140827 60%, #05060f 100%);
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(28px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));
+  }
+  .icon { width: 108px; height: 108px; border-radius: 26px; box-shadow: 0 16px 34px rgba(0,0,0,.6), 0 0 34px rgba(255,120,180,.45); }
+  h1 {
+    font-family: Bungee, sans-serif; font-weight: 400; margin: 18px 0 2px; font-size: 40px; line-height: 1; text-align: center;
+    color: #fff; letter-spacing: .02em;
+    text-shadow: 0 1px 0 #c9b8ff, 0 2px 0 #9a7cff, 0 3px 0 #7c5cff, 0 4px 0 #5a3ff0, 0 5px 0 #3a22b8, 0 6px 0 #1a0f55,
+      0 10px 18px rgba(0,0,0,.6), 0 0 28px rgba(124,92,255,.8);
+  }
+  .sub { font-family: Bungee, sans-serif; font-size: 12px; letter-spacing: .2em; color: #8ef0ff; text-shadow: 0 0 12px #22d3ee; margin-bottom: 22px; }
+  .card {
+    width: 100%; max-width: 440px; border-radius: 22px; padding: 18px;
+    background: linear-gradient(180deg, rgba(30, 24, 70, .95), rgba(12, 10, 32, .97));
+    border: 1.5px solid rgba(190, 170, 255, .2);
+    box-shadow: 0 20px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1);
+    margin-bottom: 16px;
+  }
+  .card h2 { font-family: Bungee, sans-serif; font-weight: 400; font-size: 17px; margin: 0 0 4px; letter-spacing: .04em;
+    text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 12px rgba(160,140,255,.8); }
+  .meta { font-size: 12px; color: #c3bdf0; margin-bottom: 14px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+    padding: 17px 14px; border-radius: 18px; text-decoration: none; color: #fff; text-align: center;
+    font-family: Bungee, sans-serif; font-size: 17px; letter-spacing: .04em;
+    text-shadow: 0 2px 0 rgba(0,0,0,.55);
+    border: 2px solid rgba(255,255,255,.45);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .btn:active { transform: translateY(4px); }
+  .btn-main {
+    background: linear-gradient(180deg, #8ff0a8 0%, #34c46a 45%, #17803f 100%);
+    box-shadow: 0 7px 0 #0b4a22, 0 0 30px rgba(74,222,128,.55), inset 0 3px 0 rgba(255,255,255,.45);
+  }
+  .btn-alt {
+    margin-top: 12px; font-size: 14px;
+    background: linear-gradient(180deg, #2a2560 0%, #16123b 60%, #0f0c2b 100%);
+    border-color: rgba(190,170,255,.3);
+    box-shadow: 0 6px 0 #06051a, inset 0 2px 0 rgba(255,255,255,.14);
+  }
+  .note { font-size: 11.5px; color: #8f88c7; margin-top: 10px; line-height: 1.45; }
+  ol { margin: 0; padding-left: 0; list-style: none; counter-reset: s; }
+  ol li { counter-increment: s; position: relative; padding: 8px 0 8px 40px; font-size: 13.5px; line-height: 1.4; color: #e9e4ff; }
+  ol li::before {
+    content: counter(s); position: absolute; left: 0; top: 6px; width: 28px; height: 28px; border-radius: 9px;
+    display: grid; place-items: center; font-family: Bungee, sans-serif; font-size: 13px;
+    background: linear-gradient(180deg, #a68bff, #5a3ff0); box-shadow: 0 3px 0 #2c158a, 0 0 12px rgba(124,92,255,.6);
+  }
+  b { color: #fff; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+  <img class="icon" src="./icon-512.png" alt="" />
+  <h1>RHYTHM<br />RIOT</h1>
+  <div class="sub">GET THE APP</div>
+
+  <div class="card" id="android">
+    <h2>ANDROID</h2>
+    <div class="meta">Latest build · about 70 MB — Wi-Fi is fastest</div>
+    <a class="btn btn-main" id="chromeBtn" href="#">⬇ DOWNLOAD IN CHROME</a>
+    <a class="btn btn-alt" id="directBtn" href="./rhythm-riot.apk" download>DOWNLOAD HERE INSTEAD</a>
+    <div class="note">
+      The green button hands the download to the real Chrome app. Built-in browsers inside other apps
+      (like the Claude app) can freeze at 100% on big files — Chrome won't.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>THEN INSTALL</h2>
+    <ol>
+      <li>Uninstall any old <b>Rhythm Riot</b> first (long-press its icon → Uninstall).</li>
+      <li>Wait for the download to say <b>complete</b> — it's about 70 MB.</li>
+      <li>Open your phone's <b>Files / My Files</b> app → <b>Downloads</b> → tap <b>rhythm-riot.apk</b>.</li>
+      <li>If asked, allow installs from this source, then tap <b>Install</b>.</li>
+    </ol>
+    <div class="note">Delete old copies like "rhythm-riot (1).apk" so you install the newest one.</div>
+  </div>
+
+  <div class="card" id="ios">
+    <h2>IPHONE</h2>
+    <div class="meta">No download needed — install straight from Safari</div>
+    <ol>
+      <li>Open <b>ogappcrafter-design.github.io/rhythm-riot</b> in <b>Safari</b>.</li>
+      <li>Tap <b>Share</b> → <b>Add to Home Screen</b>.</li>
+    </ol>
+  </div>
+
+<script>
+  // Fresh URL every time so no stale, half-cached download is ever reused (the server ignores the
+  // query string). The main button uses an Android intent to open the download in full Chrome,
+  // escaping in-app browsers that stall on large files; it falls back to the direct link.
+  var v = Date.now();
+  var direct = location.href.replace(/download\.html.*$/, '') + 'rhythm-riot.apk?v=' + v;
+  var hostPath = direct.replace(/^https?:\/\//, '');
+  var isAndroid = /Android/i.test(navigator.userAgent);
+  var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var chrome = document.getElementById('chromeBtn');
+  document.getElementById('directBtn').href = direct;
+  chrome.href = isAndroid
+    ? 'intent://' + hostPath + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(direct) + ';end'
+    : direct;
+  if (isIOS) {
+    var a = document.getElementById('android');
+    a.parentNode.insertBefore(document.getElementById('ios'), a);
+  }
+</script>
+</body>
+</html>
