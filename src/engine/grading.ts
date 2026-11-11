@@ -89,3 +89,24 @@ export function starRating(accuracy: number, missCount: number, notes: number): 
   if (accuracy >= 55) return 2;
   return 1;
 }
+
+/** Display grade with +/- (the stored/online grade stays the base letter). The +/- comes from
+ *  where accuracy falls within the base letter's band: top third "+", middle plain, bottom "-". */
+export type FineGrade = 'S' | 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D';
+export const FINE_GRADE_ORDER: FineGrade[] = ['D', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+', 'S'];
+
+const BANDS: Record<'A' | 'B' | 'C', [number, number]> = { A: [88, 95], B: [75, 88], C: [55, 75] };
+
+export function fineGrade(base: LetterGrade, accuracy: number): FineGrade {
+  if (base === 'S' || base === 'D') return base;
+  const [lo, hi] = BANDS[base];
+  const third = (hi - lo) / 3;
+  if (accuracy >= hi - third) return `${base}+` as FineGrade;
+  if (accuracy >= lo + third) return base;
+  return `${base}-` as FineGrade;
+}
+
+/** True when a run earns the celebratory shine (C+ or better). */
+export function earnsShine(g: FineGrade): boolean {
+  return FINE_GRADE_ORDER.indexOf(g) >= FINE_GRADE_ORDER.indexOf('C+');
+}

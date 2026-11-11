@@ -21,7 +21,9 @@ type SfxName =
   | 'combo100'
   | 'combo200'
   | 'rally'
-  | 'fanfare';
+  | 'fanfare'
+  | 'stamp'
+  | 'shine';
 
 class SfxEngine {
   private ctx: AudioContext | null = null;
@@ -99,6 +101,16 @@ class SfxEngine {
   play(name: SfxName): void {
     if (!this.ensure() || this.volume <= 0) return;
     switch (name) {
+      case 'stamp':
+        // Rubber stamp slamming onto the page: a deep body thump + a papery slap.
+        this.tone(120, 0.22, 'sine', 0.55, 48);
+        this.tone(220, 0.08, 'triangle', 0.25, 90);
+        this.noiseThud(0.16, 0.45);
+        break;
+      case 'shine':
+        // Sparkling "ting" as the comic shine lines burst out.
+        [1568, 2093, 2637].forEach((f, i) => setTimeout(() => this.tone(f, 0.22, 'sine', 0.16), i * 55));
+        break;
       case 'perfect':
         this.tone(880, 0.12, 'triangle', 0.35);
         this.tone(1320, 0.14, 'sine', 0.22);

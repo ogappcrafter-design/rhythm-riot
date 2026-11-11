@@ -12,7 +12,7 @@ function HowStep({ n, title, body }: { n: number; title: string; body: string })
     <div className="card how-step">
       <div className="how-num">{n}</div>
       <div>
-        <div style={{ fontWeight: 800 }}>{title}</div>
+        <div className="how-title">{title}</div>
         <div className="subtle" style={{ marginTop: 2 }}>{body}</div>
       </div>
     </div>

@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../state/appContext';
 import { TRACKS_BY_ID } from '../data/tracks';
 import { PALETTES } from '../data/palettes';
 import type { RunResult } from '../engine/gameEngine';
 import { rgbCss } from '../engine/colors';
-import { GradeBadge, StarRow } from '../components/ui';
+import { StarRow } from '../components/ui';
+import { GradeStamp, STAMP_IMPACT_MS, gradeLook } from '../components/GradeStamp';
+import { TrackCover } from '../components/TrackCover';
+import { earnsShine, fineGrade } from '../engine/grading';
 import { WordArt } from '../components/WordArt';
 import { IconRiotShard } from '../components/icons';
 import { sfx } from '../audio/sfx';
 import { getProfile } from '../state/storage';
 import { encodeChallenge, type Challenge } from '../online/leaderboard';
-import { useState } from 'react';
 
 const DIFF_NAME: Record<string, string> = {
   easy: 'EASY',
@@ -58,44 +60,54 @@ export function ResultsScreen({
     window.setTimeout(() => setCopied(false), 2200);
   };
 
-  useEffect(() => {
-    sfx.play('fanfare');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const fine = fineGrade(result.grade, result.accuracy);
+  const look = gradeLook(fine);
+  const shine = earnsShine(fine);
+  const [landed, setLanded] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const score = useCountUp(t.score, 1100, STAMP_IMPACT_MS + 250);
+  const vibe = useCountUp(result.vibeScore, 1100, STAMP_IMPACT_MS + 400);
+  const totalHits = Math.max(1, t.perfect + t.great + t.good + t.miss);
 
-  const clearedLine =
-    result.grade === 'S' ? 'FLAWLESS!' : result.grade === 'A' ? 'AWESOME!' : result.grade === 'D' ? 'CLEARED' : 'GREAT JOB!';
+  const onImpact = () => {
+    setLanded(true);
+    setShaking(true);
+    window.setTimeout(() => setShaking(false), 360);
+    if (shine) window.setTimeout(() => sfx.play('fanfare'), 520);
+  };
 
   const rows: { label: string; value: number; color: string }[] = [
-    { label: 'PERFECT', value: t.perfect, color: 'var(--perfect)' },
-    { label: 'GREAT', value: t.great, color: 'var(--great)' },
-    { label: 'GOOD', value: t.good, color: 'var(--good)' },
-    { label: 'MISS', value: t.miss, color: 'var(--danger)' },
+    { label: 'PERFECT', value: t.perfect, color: '#8ef0ff' },
+    { label: 'GREAT', value: t.great, color: '#8bff9b' },
+    { label: 'GOOD', value: t.good, color: '#ffe98a' },
+    { label: 'MISS', value: t.miss, color: '#ff5d73' },
   ];
 
   return (
-    <div className="screen results">
-      {/* celebratory burst */}
-      <div className="confetti" aria-hidden>
-        {Array.from({ length: 28 }).map((_, i) => (
-          <span key={i} style={{ ['--i' as string]: i, left: `${(i * 37 + 6) % 100}%` }} />
-        ))}
-      </div>
-      <div className="results-celebrate">
-        <div style={{ height: 56 }}>
+    <div className={`screen results${shaking ? ' is-shaking' : ''}`}>
+      {landed && shine && (
+        <div className="confetti" aria-hidden>
+          {Array.from({ length: 28 }).map((_, i) => (
+            <span key={i} style={{ ['--i' as string]: i, left: `${(i * 37 + 6) % 100}%` }} />
+          ))}
+        </div>
+      )}
+
+      <div className="results-head">
+        <div style={{ height: 58 }}>
           <WordArt text="SONG COMPLETE" size={40} colors={accent} fitHeight />
         </div>
-        <div style={{ height: 40, marginTop: -6 }}>
-          <WordArt
-            text={clearedLine}
-            size={30}
-            colors={result.grade === 'S' || result.grade === 'A' ? ['#fff', '#ffd76a', '#ff8a3c'] : ['#fff', '#8ef0ff', '#22d3ee']}
-            fitHeight
-          />
+        <div className="results-track" style={{ ['--card-accent' as string]: rgbCss(pal.high.glow) }}>
+          <TrackCover trackId={track.id} palette={pal} size={40} />
+          <span className="results-track-title">{track.title}</span>
+          <span className={`results-diff diff-${result.difficulty}`}>{DIFF_NAME[result.difficulty]}</span>
         </div>
       </div>
-      <div className="subtle center" style={{ marginBottom: 12 }}>
-        {track.title} · {DIFF_NAME[result.difficulty]}
+
+      <GradeStamp grade={fine} onImpact={onImpact} />
+
+      <div className={`results-stars${landed ? ' is-in' : ''}`}>
+        <StarRow count={result.stars} size={30} />
       </div>
 
       {expertJustUnlocked && (
@@ -103,9 +115,7 @@ export function ResultsScreen({
           <IconRiotShard size={22} color="#ffd76a" /> EXPERT UNLOCKED — you cleared 90% Perfect on Hard!
         </div>
       )}
-      {isNewRecord && (
-        <div className="banner record-banner">★ NEW RECORD</div>
-      )}
+      {isNewRecord && <div className="banner record-banner">★ NEW RECORD ★</div>}
       {challenge && (
         <div className={`banner ${beatChallenge ? 'record-banner' : 'challenge-lose'}`}>
           {beatChallenge
@@ -114,33 +124,30 @@ export function ResultsScreen({
         </div>
       )}
 
-      <div className="results-grade card">
-        <GradeBadge grade={result.grade} size={116} />
-        <div style={{ marginTop: 8 }}>
-          <StarRow count={result.stars} size={26} />
-        </div>
-      </div>
-
       <div className="results-scores">
-        <div className="score-tile card">
-          <div className="faint">ACCURACY SCORE</div>
-          <div className="score-big">{t.score.toLocaleString()}</div>
-          <div className="subtle">{result.accuracy.toFixed(2)}% · max combo {t.maxCombo}</div>
+        <div className="score-tile card" style={{ ['--tile' as string]: look.ink }}>
+          <div className="score-label">SCORE</div>
+          <div className="score-big">{score.toLocaleString()}</div>
+          <div className="score-sub">{result.accuracy.toFixed(2)}% · max combo {t.maxCombo}</div>
         </div>
-        <div className="score-tile card vibe-tile">
-          <div className="faint" style={{ color: '#ffd76a' }}>◆ VIBE SCORE</div>
-          <div className="score-big vibe-val">{result.vibeScore.toLocaleString()}</div>
-          <div className="subtle">how well you rode the song's arc</div>
+        <div className="score-tile card" style={{ ['--tile' as string]: '#ffd76a' }}>
+          <div className="score-label">◆ VIBE</div>
+          <div className="score-big">{vibe.toLocaleString()}</div>
+          <div className="score-sub">how you rode the song's arc</div>
         </div>
       </div>
 
       <div className="card breakdown">
-        {rows.map((r) => (
-          <div className="breakdown-row" key={r.label}>
-            <span className="breakdown-dot" style={{ background: r.color }} />
+        {rows.map((r, i) => (
+          <div className="breakdown-row" key={r.label} style={{ ['--row' as string]: r.color }}>
             <span className="breakdown-label">{r.label}</span>
-            <span className="spacer" />
-            <span className="breakdown-val" style={{ color: r.color }}>{r.value}</span>
+            <span className="breakdown-bar">
+              <span
+                className="breakdown-fill"
+                style={{ width: landed ? `${Math.max(2, (r.value / totalHits) * 100)}%` : '0%', transitionDelay: `${0.25 + i * 0.12}s` }}
+              />
+            </span>
+            <span className="breakdown-val">{r.value}</span>
           </div>
         ))}
       </div>
@@ -154,10 +161,10 @@ export function ResultsScreen({
         </button>
         <div className="row" style={{ gap: 10 }}>
           <button className="btn btn-ghost btn-block" style={{ flex: 1 }} onClick={shareChallenge}>
-            {copied ? '✓ Copied!' : '⚔️ Challenge a friend'}
+            {copied ? '✓ Copied!' : '⚔️ Challenge'}
           </button>
           <button className="btn btn-ghost btn-block" style={{ flex: 1 }} onClick={() => { sfx.play('uiTap'); navigate({ name: 'leaderboard' }); }}>
-            🏆 Leaderboards
+            🏆 Ranks
           </button>
         </div>
         <button
@@ -169,4 +176,21 @@ export function ResultsScreen({
       </div>
     </div>
   );
+}
+
+/** Animate a number from 0 to `target` after `delayMs` (ease-out), for the score reveal. */
+function useCountUp(target: number, durationMs: number, delayMs: number): number {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now() + delayMs;
+    const step = (now: number) => {
+      const k = Math.max(0, Math.min(1, (now - start) / durationMs));
+      setV(Math.round(target * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, delayMs]);
+  return v;
 }
