@@ -10,6 +10,7 @@ export type Route =
   | { name: 'intro' }
   | { name: 'menu' }
   | { name: 'songselect' }
+  | { name: 'difficulty'; trackId: string }
   | { name: 'ready'; trackId: string; difficulty: Difficulty; challenge?: Challenge }
   | { name: 'game'; trackId: string; difficulty: Difficulty; challenge?: Challenge }
   | { name: 'results'; result: RunResult; isNewRecord: boolean; expertJustUnlocked: boolean; challenge?: Challenge }

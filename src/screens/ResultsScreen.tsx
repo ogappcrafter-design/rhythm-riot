@@ -155,7 +155,7 @@ export function ResultsScreen({
       <div className="stack" style={{ marginTop: 16 }}>
         <button
           className="btn btn-primary btn-block"
-          onClick={() => { sfx.play('uiTap'); navigate({ name: 'ready', trackId: result.trackId, difficulty: result.difficulty, challenge }); }}
+          onClick={() => { sfx.unlock(); sfx.play('uiTap'); navigate({ name: 'game', trackId: result.trackId, difficulty: result.difficulty, challenge }); }}
         >
           Replay
         </button>

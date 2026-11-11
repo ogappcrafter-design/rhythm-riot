@@ -2,9 +2,12 @@ import { useApp } from '../state/appContext';
 import { TRACKS } from '../data/tracks';
 import { PALETTES } from '../data/palettes';
 import { DIFFICULTY_ORDER, type Difficulty } from '../engine/chartTypes';
+
+const DIFF_INITIAL: Record<Difficulty, string> = { easy: 'E', medium: 'M', hard: 'H', expert: 'X' };
+const DIFF_DOT: Record<Difficulty, string> = { easy: '#4ade80', medium: '#38bdf8', hard: '#f472b6', expert: '#f59e0b' };
 import { getBest, isExpertUnlocked } from '../state/storage';
 import { rgbCss } from '../engine/colors';
-import { DifficultyGem, ScreenHeader, StarRow } from '../components/ui';
+import { ScreenHeader } from '../components/ui';
 import { WordArt } from '../components/WordArt';
 import { TrackCover } from '../components/TrackCover';
 import { sfx } from '../audio/sfx';
@@ -12,14 +15,15 @@ import { sfx } from '../audio/sfx';
 export function SongSelect() {
   const { navigate, goBack } = useApp();
 
-  const pick = (trackId: string, diff: Difficulty) => {
+  const pick = (trackId: string) => {
     sfx.play('uiTap');
-    navigate({ name: 'ready', trackId, difficulty: diff });
+    navigate({ name: 'difficulty', trackId });
   };
 
   return (
     <div className="screen">
       <ScreenHeader title="SELECT TRACK" onBack={() => { sfx.play('uiBack'); goBack(); }} />
+      <div className="step-tag">STEP 1 · PICK A SONG</div>
       <div className="stack fade-mask" style={{ paddingBottom: 20 }}>
         {TRACKS.map((track) => {
           const pal = PALETTES[track.paletteKey];
@@ -37,9 +41,11 @@ export function SongSelect() {
             getBest(track.id, 'expert');
 
           return (
-            <div
+            <button
               className="card track-card"
               key={track.id}
+              onClick={() => pick(track.id)}
+              aria-label={`${track.title} — choose difficulty`}
               style={{ padding: 14, ['--card-accent' as string]: rgbCss(pal.high.glow) }}
             >
               {track.explicit && (
@@ -71,33 +77,20 @@ export function SongSelect() {
                 </div>
               </div>
 
-              <div className="pick-hint" style={{ marginTop: 12 }}>Tap a difficulty to play</div>
-              <div className="diff-row">
-                {DIFFICULTY_ORDER.map((diff) => {
-                  const locked = diff === 'expert' && !unlocked;
-                  return (
-                    <DifficultyGem
-                      key={diff}
-                      diff={diff}
-                      locked={locked}
-                      onClick={() => pick(track.id, diff)}
-                    />
-                  );
-                })}
+              <div className="song-card-foot">
+                <span className="song-card-bests">
+                  {DIFFICULTY_ORDER.map((d) => {
+                    const b = getBest(track.id, d);
+                    return (
+                      <span key={d} className={`best-dot${b ? ' has' : ''}`} style={{ ['--bd' as string]: DIFF_DOT[d] }} title={d}>
+                        {b ? b.grade : d === 'expert' && !unlocked ? '🔒' : DIFF_INITIAL[d]}
+                      </span>
+                    );
+                  })}
+                </span>
+                <span className="song-card-go">SELECT ▶</span>
               </div>
-
-              {!unlocked && (
-                <div className="faint" style={{ marginTop: 8 }}>
-                  🔒 Expert unlocks at ≥90% Perfect on Hard
-                  {hardBest ? ` (best ${hardBest.perfectPercent.toFixed(0)}%)` : ''}
-                </div>
-              )}
-              {hardBest && hardBest.stars > 0 && (
-                <div style={{ marginTop: 6 }}>
-                  <StarRow count={hardBest.stars} size={16} />
-                </div>
-              )}
-            </div>
+            </button>
           );
         })}
       </div>

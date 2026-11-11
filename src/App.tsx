@@ -5,6 +5,7 @@ import { BrandingScreen } from './screens/BrandingScreen';
 import { IntroScreen } from './screens/IntroScreen';
 import { MainMenu } from './screens/MainMenu';
 import { SongSelect } from './screens/SongSelect';
+import { DifficultyScreen } from './screens/DifficultyScreen';
 import { ReadyScreen } from './screens/ReadyScreen';
 import { GameplayScreen } from './screens/GameplayScreen';
 import { ResultsScreen } from './screens/ResultsScreen';
@@ -46,6 +47,9 @@ export function App() {
         return <MainMenu />;
       case 'songselect':
         return <SongSelect />;
+      case 'difficulty':
+        // key: fresh preview + chart per song
+        return <DifficultyScreen key={route.trackId} trackId={route.trackId} />;
       case 'ready':
         return <ReadyScreen trackId={route.trackId} difficulty={route.difficulty} challenge={route.challenge} />;
       case 'game':
