@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Source for the iPhone/iPad launch screens. Rendered by scripts/make-ios-splash.mjs. -->
+<html><head><meta charset="utf-8"><style>
+  @font-face { font-family: Bungee; src: url('../public/fonts/bungee.woff2') format('woff2'); }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background:
+      radial-gradient(90% 45% at 50% 40%, rgba(124, 92, 255, 0.38), transparent 70%),
+      linear-gradient(180deg, #12052a 0%, #2a0c4a 38%, #4a1260 52%, #120624 64%, #05060f 100%);
+  }
+  .sun {
+    position: absolute; left: 50%; top: 58%; width: 62vw; height: 62vw; max-width: 520px; max-height: 520px;
+    transform: translate(-50%, -50%); border-radius: 50%; opacity: 0.22;
+    background: linear-gradient(180deg, #ffe24a, #ff6a4d 60%, #ff3d7a);
+    -webkit-mask: linear-gradient(#000 55%, transparent 56%, transparent 60%, #000 61%, #000 66%, transparent 67%, transparent 71%, #000 72%, #000 76%, transparent 77%);
+    filter: blur(1px);
+  }
+  .grid { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; width: 100%; opacity: .85; filter: drop-shadow(0 0 4px rgba(34,211,238,.8));
+    -webkit-mask: linear-gradient(transparent, #000 30%); }
+  .horizon { position: absolute; left: 0; right: 0; bottom: 30%; height: 3px; background: #43ffe0;
+    box-shadow: 0 0 14px 3px #43ffe0, 0 0 32px 6px #22d3ee; opacity: .8; }
+  .icon {
+    position: relative; width: 34vw; height: 34vw; max-width: 260px; max-height: 260px; border-radius: 22%;
+    box-shadow: 0 3vw 6vw rgba(0,0,0,.65), 0 0 7vw rgba(255,120,180,.45), 0 0 0 .5vw rgba(255,255,255,.12);
+    margin-top: -12vh;
+  }
+  h1 {
+    position: relative; margin-top: 6vw; font-family: Bungee; font-weight: 400; color: #fff; text-align: center;
+    font-size: min(11vw, 92px); line-height: 1.02; letter-spacing: .02em;
+    text-shadow: 0 .12em 0 #6c4cf0, 0 .13em 0 #3a22b8, 0 .14em 0 #1a0f55, 0 .25em .3em rgba(0,0,0,.6), 0 0 .5em rgba(124,92,255,.8);
+  }
+  h1 span { color: #8ef0ff; text-shadow: 0 .12em 0 #1aa8c8, 0 .13em 0 #0e6f88, 0 .14em 0 #063848, 0 .25em .3em rgba(0,0,0,.6), 0 0 .5em rgba(34,211,238,.85); }
+</style></head>
+<body>
+  <div class="sun"></div><div class="horizon"></div><svg class="grid" viewBox="0 0 100 30" preserveAspectRatio="none" id="grid"></svg>
+  <script>
+    // True perspective floor: rays fan out from a vanishing point at the horizon, rows get wider apart
+    // toward the viewer (same look as the in-game road).
+    var g = document.getElementById('grid'), out = '';
+    var stroke = 'stroke="rgba(67,255,224,0.75)" stroke-width="1.6" vector-effect="non-scaling-stroke"';
+    for (var i = -12; i <= 12; i++) out += '<line x1="50" y1="0" x2="' + (50 + i * 12) + '" y2="30" ' + stroke + '/>';
+    for (var k = 1; k <= 9; k++) { var y = 30 * Math.pow(k / 9, 2.1); out += '<line x1="0" y1="' + y + '" x2="100" y2="' + y + '" ' + stroke + '/>'; }
+    g.innerHTML = out;
+  </script>
+  <img class="icon" src="../public/icon-512.png" alt="">
+  <h1>RHYTHM<br><span>RIOT</span></h1>
+</body></html>
